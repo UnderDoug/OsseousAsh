@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>OsseousAsh</AssemblyName>
+    <PackageId>OsseousAsh</PackageId>
+    <Authors>UnderDoug</Authors>
+    <Title>Osseous Ash Server</Title>
+    <Description>RESTful API for the Caves of Qud Bones Folder mod's cloud-based bones files.</Description>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+</Project>
