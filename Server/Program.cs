@@ -11,7 +11,12 @@ namespace OsseousAsh.Server
     {
         static async Task Main(string[] args)
         {
-            var server = new HttpAPIServer();
+            string alternateUrl = null;
+            if (args != null
+                && args.Length > 0)
+                alternateUrl = args[0];
+            var server = new HttpAPIServer(alternateUrl);
+
             await server.StartAsync();
         }
     }

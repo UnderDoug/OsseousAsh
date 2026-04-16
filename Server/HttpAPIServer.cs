@@ -13,8 +13,11 @@ namespace OsseousAsh.Server
     {
         private HttpListener _listener;
         private readonly string _baseUrl = "http://localhost:8080/";
+        private string _AlternateUrl;
         private readonly ApiRouter _router;
         private readonly MiddlewarePipeline _pipeline;
+
+        private string Url => _AlternateUrl ?? _baseUrl;
 
         public HttpAPIServer()
         {
@@ -22,6 +25,12 @@ namespace OsseousAsh.Server
             _pipeline = new MiddlewarePipeline();
             ConfigureRoutes();
             ConfigureMiddleware();
+        }
+
+        public HttpAPIServer(string AlternateUrl)
+            : this()
+        {
+            _AlternateUrl = AlternateUrl;
         }
 
         private async Task ListenForRequestsAsync()
@@ -52,14 +61,14 @@ namespace OsseousAsh.Server
         public async Task StartAsync()
         {
             _listener = new HttpListener();
-            _listener.Prefixes.Add(_baseUrl);
+            _listener.Prefixes.Add(Url);
             _listener.Start();
 
-            Console.WriteLine($"RESTful API Server started at {_baseUrl}");
+            Console.WriteLine($"RESTful API Server started at {Url}");
             Console.WriteLine("Available endpoints:");
-            Console.WriteLine("  GET    /api/users     - Get all users");
+            Console.WriteLine("  GET    /api/users      - Get all users");
             Console.WriteLine("  GET    /api/users/{id} - Get user by ID");
-            Console.WriteLine("  POST   /api/users     - Create new user");
+            Console.WriteLine("  POST   /api/users      - Create new user");
             Console.WriteLine("  PUT    /api/users/{id} - Update user");
             Console.WriteLine("  DELETE /api/users/{id} - Delete user");
             Console.WriteLine("\n Press Ctrl+C to stop the server...");
@@ -82,7 +91,7 @@ namespace OsseousAsh.Server
             {
                 var buffer = Encoding.UTF8.GetBytes(apiResponse.Body);
                 response.ContentLength64 = buffer.Length;
-                await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                await response.OutputStream.WriteAsync(buffer);
             }
 
             response.Close();
