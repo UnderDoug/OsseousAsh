@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.2752196">
+  <ItemGroup>
+    <None Remove=".vscode\**" />
+    <TypeScriptConfiguration Remove=".vscode\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Common\Middlewares\" />
+    <Folder Include="BonesInfo\" />
+    <Folder Include="Storage\" />
+  </ItemGroup>
+</Project>
