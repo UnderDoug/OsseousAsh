@@ -1,15 +1,15 @@
-/*const { DataTypes } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
 const BonesSpec = {
     ID: {
-        type: 'VARCHAR(36)',
+        type: 'UUID',
         autoIncrement: false,
         allowNull: false,
         primaryKey: true,
         unique: true,
     },
     Level: {
-        type: DataTypes.INTEGER,
+        type: 'INTEGER',
         allowNull: false,
     },
     ZoneID: {
@@ -34,7 +34,8 @@ const BonesSpec = {
     },
     TerrainTravelClass: {
         type: 'VARCHAR(255)',
+        allowNull: false,
     },
 };
 
-module.exports = (sequelize) => sequelize.define('BonesSpec', BonesSpec);*/
+module.exports = (sequelize) => sequelize.define('BonesSpec', BonesSpec);

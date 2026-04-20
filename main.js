@@ -1,22 +1,27 @@
 const express = require('express');
 const main = express();
 main.use(express.json());
+main.use(express.raw());
 main.use(express.urlencoded({ extended: true }));
 
 // setup sequelize
 const sequelize = require('./Common/database');
 
 const defineBonesInfo = require('./Common/Models/BonesInfo');
-//const defineBonesSpec = require('./Common/Models/BonesSpec');
+const defineBonesSpec = require('./Common/Models/BonesSpec');
 
 const BonesInfo = defineBonesInfo(sequelize);
-//const BonesSpec = defineBonesSpec(sequelize);
+const BonesSpec = defineBonesSpec(sequelize);
 sequelize.sync();
 
 // register routes
 const bonesInfoRoutes = require('./BonesInfo/routes');
+const bonesSpecRoutes = require('./BonesSpec/routes');
+const bonesRoutes = require('./BonesRecord/routes');
 
 main.use('/', bonesInfoRoutes);
+main.use('/', bonesSpecRoutes);
+main.use('/', bonesRoutes);
 
 main.get('/status', (req, res) => {
     res.json({
