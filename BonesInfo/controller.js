@@ -135,6 +135,8 @@ const getAllBonesInfo = async (req, res) => {
 
         var bonesSaveInfos = new Array();
         for (let i = 0; i < bonesInfos.length; i++) {
+            if (!bonesSaveInfos[i].SavGz)
+                continue;
             bonesSaveInfos[i] = bonesInfos[i].SaveBonesJSON;
         }
 
