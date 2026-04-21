@@ -1,14 +1,19 @@
 const { Sequelize } = require('sequelize');
+const args = process.argv.slice(2);
 
-/*const sequelize = new Sequelize({
-    dialect: 'postgres',
-    storage: './storage/data.db',
-    user: 'OsseousAsh',
-    password: 'bones',
-    host: 'localhost',
-    port: 5432,
-    ssl: false,
-    clientMinMessages: 'notice',
-});*/
-sequelize = new Sequelize('postgres://OsseousAsh:bones@localhost:5432/OsseousAsh');
+var username = args[0] ?? '';
+var password = args[1] ?? '';
+
+var host = args[2] ?? 'localhost'
+
+const sequelize = new Sequelize(
+    'OsseousAsh',
+    username,
+    password,
+    {
+        host: host,
+        dialect: 'postgres'
+    }
+);
+
 module.exports = sequelize;

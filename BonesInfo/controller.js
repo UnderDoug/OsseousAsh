@@ -106,11 +106,11 @@ const getBonesSaveGz = async (req, res) => {
         ).send(Uint8Array.from(bonesInfo.SavGz));
 
         /*res.status(200).json({
-            success: true,
             OsseousAshRecord: {
                 BonesID: bonesID,
                 SaveBonesJSON: bonesInfo.SaveBonesJSON,
-                SavGz: Uint8Array.from(bonesInfo.SavGz)
+                //SavGz: Uint8Array.from(bonesInfo.SavGz)
+                SavGz: bonesInfo.SavGz
             }
         });*/
 
@@ -126,8 +126,13 @@ const getBonesSaveGz = async (req, res) => {
 
 const getAllBonesInfo = async (req, res) => {
     try {
-
         const bonesInfos = await BonesInfo.findAll();
+        if (!bonesInfos)
+            return res.status(204).json({
+                success: true,
+                message: 'No BonesInfos, but no errors'
+            })
+
         var bonesSaveInfos = new Array();
         for (let i = 0; i < bonesInfos.length; i++) {
             bonesSaveInfos[i] = bonesInfos[i].SaveBonesJSON;
@@ -154,10 +159,36 @@ const getAllBonesInfo = async (req, res) => {
     }
 };
 
+const getAllBonesID = async (req, res) => {
+    try {
+        const bonesIDs = await BonesInfo.findAll({
+            attributes: ['ID'],
+        });
+        if (!bonesIDs)
+            return res.status(204).json({
+                success: true,
+                message: 'No BonesIDs, but no errors'
+            })
+
+        res.status(200).json({
+            success: true,
+            data: bonesIDs
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving All BonesInfos',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createBonesInfo,
     getBonesInfo,
     getBonesSpec,
     getBonesSaveGz,
     getAllBonesInfo,
+    getAllBonesID,
 };

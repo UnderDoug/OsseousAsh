@@ -6,6 +6,12 @@ main.use(express.urlencoded({ extended: true }));
 
 // setup sequelize
 const sequelize = require('./Common/database');
+sequelize.authenticate()
+    .then(() => {
+        console.log('Connection has been established successfully.');
+    }).catch(error => {
+        console.log('Unable to connect to the database:', error);
+    });
 
 const defineBonesInfo = require('./Common/Models/BonesInfo');
 const defineBonesSpec = require('./Common/Models/BonesSpec');
@@ -22,6 +28,14 @@ const bonesRoutes = require('./BonesRecord/routes');
 main.use('/', bonesInfoRoutes);
 main.use('/', bonesSpecRoutes);
 main.use('/', bonesRoutes);
+
+main.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        error: 'Something went wrong'
+    });
+});
 
 main.get('/status', (req, res) => {
     res.json({

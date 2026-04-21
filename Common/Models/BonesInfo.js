@@ -15,7 +15,7 @@ const BonesInfoModel = {
     },
     SavGz: {
         type: 'BYTEA',
-        allowNull: false,
+        allowNull: true,
         autoIncrement: false,
     },
 };
