@@ -18,7 +18,12 @@ const defineBonesSpec = require('./Common/Models/BonesSpec');
 
 const BonesInfo = defineBonesInfo(sequelize);
 const BonesSpec = defineBonesSpec(sequelize);
-sequelize.sync();
+sequelize.sync()
+    .then(async () => {
+        await BonesRecordController.tidyBones();
+    }).catch(error => {
+        console.log('Unable to tidy the bones:', error);
+    });;
 
 // register routes
 const bonesInfoRoutes = require('./BonesInfo/routes');
@@ -44,5 +49,9 @@ main.get('/status', (req, res) => {
     });
 });
 
+const BonesRecordController = require('./BonesRecord/controller');
+
 const PORT = process.env.PORT || 8000;
-main.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+main.listen(PORT, async () => {
+    console.log(`Server running on port ${PORT}`);
+});

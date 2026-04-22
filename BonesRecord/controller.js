@@ -3,7 +3,8 @@ const defineBonesInfo = require('../Common/Models/BonesInfo');
 const defineBonesSpec = require('../Common/Models/BonesSpec');
 const BonesSpec = defineBonesSpec(sequelize);
 const BonesInfo = defineBonesInfo(sequelize);
-const { IDsByToken, TokenTimestamps } = require('../common/middlewares/IsAllowedToPutSavGz');
+const { IDsByToken, clearToken } = require('../common/middlewares/IsAllowedToPutSavGz');
+const { Op } = require('sequelize');
 
 const Ajv = require('ajv');
 const ajv = new Ajv();
@@ -85,14 +86,6 @@ const createBones = async (req, res) => {
     }
 };
 
-async function updateBonesInfo(BonesID, newBonesInfo) {
-    const result = await BonesInfo.update(newBonesInfo, {
-        where: { ID: BonesID }
-    });
-
-    return result;
-}
-
 const addBonesSavGz = async (req, res) => {
     var catchMessage = "";
     try {
@@ -101,19 +94,27 @@ const addBonesSavGz = async (req, res) => {
         catchMessage = "Failed to find BonesInfo";
         var bonesInfo = await BonesInfo.findByPk(bonesID);
 
-        bonesInfo.SavGz = req.body;
+        catchMessage = "Failed to update BonesInfo SavGz";
+        bonesInfo.update({
+            SavGz: req.body
+        });
+        catchMessage = "Failed to save BonesInfo SavGz";
+        await bonesInfo.save({
+            fields: ['SavGz']
+        });
 
-        catchMessage = "Failed to update BonesInfo";
-        const updatedBonesInfo = await updateBonesInfo(bonesID, bonesInfo);
+        catchMessage = "Failed to reload BonesInfo";
+        await bonesInfo.reload();
+
         res.status(201).json({
             success: true,
             BonesID: bonesID,
-            SavGz: updatedBonesInfo.SavGz.byteLength + ' bytes',
+            SavGz: (Uint8Array.from(bonesInfo.SavGz).byteLength / 1000) + 'kb',
         });
-        IDsByToken[req.token] = null;
-        TokenTimestamps[req.token] = null;
+        clearToken(req.token);
     }
     catch (error) {
+        console.log(catchMessage, error.message)
         res.status(500).json({
             success: false,
             message: catchMessage,
@@ -326,6 +327,75 @@ const deleteAllBones = async (req, res) => {
     });
 };
 
+const tidyBones = async () => {
+    console.log('Tidying bone fragments...');
+    try {
+        const invalidBonesIDs = await BonesInfo.findAll({
+            attribute: ['ID'],
+            where: {
+                SavGz: { [Op.is]: null },
+            }
+        });
+
+        var fragments = 0;
+        if (invalidBonesIDs) {
+            for (let i = 0; i < invalidBonesIDs.length; i++) {
+                let bonesID = invalidBonesIDs[i].ID;
+                try {
+                    await BonesInfo.destroy({
+                        where: {
+                            ID: bonesID,
+                        },
+                    });
+                    fragments++;
+                }
+                catch (error) {
+                    console.log('Error tidying BonesInfo with null SavGz', error.message);
+                }
+
+                try {
+                    await BonesSpec.destroy({
+                        where: {
+                            ID: bonesID,
+                        },
+                    });
+                    fragments++;
+                }
+                catch (error) {
+                    console.log('Error tidying BonesSpec with null SavGz', error.message);
+                }
+            }
+        }
+
+        const bonesSpecIDs = await BonesSpec.findAll({
+            attribute: ['ID'],
+        });
+
+        if (bonesSpecIDs) {
+            for (let i = 0; i < bonesSpecIDs.length; i++) {
+                let bonesID = bonesSpecIDs[i].ID;
+                try {
+                    if (!(await BonesInfo.findByPk(bonesID))) {
+                        await BonesSpec.destroy({
+                            where: {
+                                ID: bonesID,
+                            },
+                        });
+                        fragments++;
+                    }
+                }
+                catch (error) {
+                    console.log('Error tidying orphaned BonesSpec', error.message);
+                }
+            }
+        }
+    }
+    catch (error) {
+        console.log('Error tidying Bones', error.message);
+    }
+    console.log(fragments + ' bone fragments tidied!');
+}
+
 module.exports = {
     createBones,
     addBonesSavGz,
@@ -333,4 +403,5 @@ module.exports = {
     getAllBones,
     deleteBones,
     deleteAllBones,
+    tidyBones,
 };
