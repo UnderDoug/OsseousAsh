@@ -13,11 +13,16 @@ sequelize.authenticate()
         console.log('Unable to connect to the database:', error);
     });
 
+
+// sequelize models
 const defineBonesInfo = require('./Common/Models/BonesInfo');
 const defineBonesSpec = require('./Common/Models/BonesSpec');
 
 const BonesInfo = defineBonesInfo(sequelize);
 const BonesSpec = defineBonesSpec(sequelize);
+
+// sync and "on connection" start-up.
+const BonesRecordController = require('./BonesRecord/controller');
 sequelize.sync()
     .then(async () => {
         await BonesRecordController.tidyBones();
@@ -42,16 +47,22 @@ main.use((err, req, res, next) => {
     });
 });
 
-main.get('/status', (req, res) => {
+const getRecordCount = async (model) => {
+    return (await model.findAll()).length;
+}
+
+main.get('/status', async (req, res) => {
     res.json({
         status: 'Running',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        records: {
+            BonesInfo: await getRecordCount(BonesInfo),
+            BonesSpec: await getRecordCount(BonesSpec),
+        }
     });
 });
 
-const BonesRecordController = require('./BonesRecord/controller');
-
 const PORT = process.env.PORT || 8000;
-main.listen(PORT, async () => {
+main.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
