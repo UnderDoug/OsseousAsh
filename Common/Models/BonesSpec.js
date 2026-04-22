@@ -2,38 +2,38 @@ const { DataTypes } = require('sequelize');
 
 const BonesSpec = {
     ID: {
-        type: 'UUID',
+        type: DataTypes.UUID,
         autoIncrement: false,
         allowNull: false,
         primaryKey: true,
         unique: true,
     },
     Level: {
-        type: 'INTEGER',
+        type: DataTypes.INTEGER,
         allowNull: false,
     },
     ZoneID: {
-        type: 'VARCHAR(255)',
+        type: DataTypes.STRING,
         allowNull: false,
     },
     ZoneZ: {
-        type: 'INTEGER',
+        type: DataTypes.INTEGER,
         allowNull: false,
     },
     ZoneTier: {
-        type: 'INTEGER',
+        type: DataTypes.INTEGER,
         allowNull: false,
     },
     ZoneTerrainType: {
-        type: 'VARCHAR(255)',
+        type: DataTypes.STRING,
         allowNull: false,
     },
     RegionTier: {
-        type: 'INTEGER',
+        type: DataTypes.INTEGER,
         allowNull: false,
     },
     TerrainTravelClass: {
-        type: 'VARCHAR(255)',
+        type: DataTypes.STRING,
         allowNull: false,
     },
 };
