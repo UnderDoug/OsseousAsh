@@ -54,10 +54,7 @@ main.get('/status', async (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 8000;
-main.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// all routes should be above this one.
 
 main.use((err, req, res, next) => {
     console.error('Error handler', err.stack);
@@ -66,4 +63,9 @@ main.use((err, req, res, next) => {
         error: err.message || 'Something went wrong'
     });
     res.send();
+});
+
+const PORT = process.env.PORT || 8000;
+main.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
