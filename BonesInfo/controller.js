@@ -1,6 +1,7 @@
 const sequelize = require('../Common/database');
 const defineBonesInfo = require('../Common/Models/BonesInfo');
 const BonesInfo = defineBonesInfo(sequelize);
+const { Op } = require('sequelize');
 
 const createBonesInfo = async (req, res) =>
 {
@@ -126,30 +127,24 @@ const getBonesSaveGz = async (req, res) => {
 
 const getAllBonesInfo = async (req, res) => {
     try {
-        const bonesInfos = await BonesInfo.findAll();
-        if (!bonesInfos)
+        const bonesSaveInfos = await BonesInfo.findAll({
+            attributes: ['SaveBonesJSON'],
+            where: {
+                SavGz: { [Op.not]: null },
+            },
+        });
+        if (!bonesSaveInfos)
             return res.status(204).json({
                 success: true,
                 message: 'No BonesInfos, but no errors'
-            })
-
-        var bonesSaveInfos = new Array();
-        for (let i = 0; i < bonesInfos.length; i++) {
-            if (!bonesSaveInfos[i].SavGz)
-                continue;
-            bonesSaveInfos[i] = bonesInfos[i].SaveBonesJSON;
+            });
+        let saveBonesJSONs = new Array();
+        for (let i = 0; i < bonesSaveInfos.length; i++) {
+            saveBonesJSONs[i] = bonesSaveInfos[i].SaveBonesJSON;
         }
-
-        if (bonesSaveInfos.length < 1)
-            return res.status(204).json({
-                success: true,
-                message: 'No BonesInfos, but no errors',
-                data: null
-            })
-
         res.status(200).json({
             success: true,
-            data: bonesSaveInfos
+            data: saveBonesJSONs
         });
     }
     catch (error) {
@@ -163,24 +158,32 @@ const getAllBonesInfo = async (req, res) => {
 
 const getAllBonesID = async (req, res) => {
     try {
-        const bonesIDs = await BonesInfo.findAll({
+        const bonesInfoIDs = await BonesInfo.findAll({
             attributes: ['ID'],
+            where: {
+                SavGz: { [Op.not]: null },
+            },
         });
-        if (!bonesIDs)
+        if (!bonesInfoIDs)
             return res.status(204).json({
                 success: true,
                 message: 'No BonesIDs, but no errors'
-            })
+            });
+
+        let bonesIDs = new Array();
+        for (let i = 0; i < bonesInfoIDs.length; i++) {
+            bonesIDs[i] = bonesInfoIDs[i].ID;
+        }
 
         res.status(200).json({
             success: true,
-            data: bonesIDs
+            data: bonesIDs,
         });
     }
     catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error retrieving All BonesInfos',
+            message: 'Error retrieving All BonesIDs',
             error: error.message
         });
     }
