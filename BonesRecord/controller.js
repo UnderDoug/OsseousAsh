@@ -3,7 +3,7 @@ const defineBonesInfo = require('../Common/Models/BonesInfo');
 const defineBonesSpec = require('../Common/Models/BonesSpec');
 const BonesSpec = defineBonesSpec(sequelize);
 const BonesInfo = defineBonesInfo(sequelize);
-const { IDsByToken, clearToken } = require('../common/middlewares/IsAllowedToPutSavGz');
+const { IDsByToken, clearToken } = require('../Common/Middlewares/IsAllowedToPutSavGz');
 const { Op } = require('sequelize');
 
 const Ajv = require('ajv');
