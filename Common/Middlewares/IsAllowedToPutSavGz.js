@@ -78,10 +78,9 @@ exports.allow = (req, res, next) => {
     }
     catch (error) {
         console.log('Failed to create token for follow up SavGz PUT');
-        return res.status(500).json({
-            message: 'Failed to create token for follow up SavGz PUT',
-            error: error.message
-        });
+        const err = new Error(`Failed to create token for follow up SavGz PUT, ${error.message}`);
+        err.status = 500;
+        next(err);
     }
 };
 
@@ -124,9 +123,8 @@ exports.check = (req, res, next) => {
     }
     catch (error) {
         console.log('Failed to assign token to request');
-        res.status(500).json({
-            message: 'Failed to assign token to request',
-            error: error.message
-        });
+        const err = new Error(`Failed to assign token to request, ${error.message}`);
+        err.status = 500;
+        next(err);
     }
 };

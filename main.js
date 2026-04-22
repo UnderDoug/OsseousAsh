@@ -39,14 +39,6 @@ main.use('/', bonesInfoRoutes);
 main.use('/', bonesSpecRoutes);
 main.use('/', bonesRoutes);
 
-main.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        success: false,
-        error: 'Something went wrong'
-    });
-});
-
 const getRecordCount = async (model) => {
     return (await model.findAll()).length;
 }
@@ -65,4 +57,13 @@ main.get('/status', async (req, res) => {
 const PORT = process.env.PORT || 8000;
 main.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+});
+
+main.use((err, req, res, next) => {
+    console.error('Error handler', err.stack);
+    res.status(err.status || 500).json({
+        success: false,
+        error: err.message || 'Something went wrong'
+    });
+    res.send();
 });
