@@ -1,5 +1,6 @@
 const express = require('express');
 const main = express();
+
 main.use(express.json());
 main.use(express.raw());
 main.use(express.urlencoded({ extended: true }));
@@ -13,31 +14,28 @@ sequelize.authenticate()
         console.log('Unable to connect to the database:', error);
     });
 
-
 // sequelize models
-const defineBonesInfo = require('./Common/Models/BonesInfo');
-const defineBonesSpec = require('./Common/Models/BonesSpec');
+const defineBones = require('./Common/Models/Bones');
 
-const BonesInfo = defineBonesInfo(sequelize);
-const BonesSpec = defineBonesSpec(sequelize);
+const Bones = defineBones(sequelize);
 
 // sync and "on connection" start-up.
-const BonesRecordController = require('./BonesRecord/controller');
+const BonesController = require('./Bones/controller');
 sequelize.sync()
     .then(async () => {
-        await BonesRecordController.tidyBones();
+        await BonesController.tidyBones();
     }).catch(error => {
         console.log('Unable to tidy the bones:', error);
     });;
 
 // register routes
+const bonesRoutes = require('./Bones/routes');
 const bonesInfoRoutes = require('./BonesInfo/routes');
 const bonesSpecRoutes = require('./BonesSpec/routes');
-const bonesRoutes = require('./BonesRecord/routes');
 
+main.use('/', bonesRoutes);
 main.use('/', bonesInfoRoutes);
 main.use('/', bonesSpecRoutes);
-main.use('/', bonesRoutes);
 
 const getRecordCount = async (model) => {
     return (await model.findAll()).length;
@@ -48,16 +46,27 @@ main.get('/status', async (req, res) => {
         status: 'Running',
         timestamp: new Date().toISOString(),
         records: {
-            BonesInfo: await getRecordCount(BonesInfo),
+            BonesInfo: await getRecordCount(Bones),
             BonesSpec: await getRecordCount(BonesSpec),
         }
     });
 });
 
+const checkWL = require('./Common/Middlewares/IsWhiteListed').check;
+
+main.get('/canUp', checkWL, async (req, res) => {
+    res.status(200).json(true);
+});
+
 // all routes should be above this one.
 
 main.use((err, req, res, next) => {
-    console.error('Error handler', err.stack);
+    var consoleMsg = err.stack;
+    if (err.status != 500
+        && err.status != null) {
+        consoleMsg = err.message;
+    }
+    console.error('Error handler:', consoleMsg);
     res.status(err.status || 500).json({
         success: false,
         error: err.message || 'Something went wrong'

@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 
-const BonesInfoModel = {
+const BonesModel = {
     ID: {
         type: DataTypes.UUID,
         autoIncrement: false,
@@ -13,6 +13,11 @@ const BonesInfoModel = {
         allowNull: false,
         autoIncrement: false,
     },
+    Size: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        autoIncrement: false,
+    },
     SavGz: {
         type: DataTypes.BLOB,
         allowNull: true,
@@ -20,4 +25,4 @@ const BonesInfoModel = {
     },
 };
 
-module.exports = (sequelize) => sequelize.define('BonesInfo', BonesInfoModel);
+module.exports = (sequelize) => sequelize.define('Bones', BonesModel);

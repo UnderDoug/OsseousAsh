@@ -1,28 +1,29 @@
 const sequelize = require('../database');
-const defineBonesInfo = require('../Models/BonesInfo');
-const defineBonesSpec = require('../Models/BonesSpec');
-const BonesSpec = defineBonesSpec(sequelize);
-const BonesInfo = defineBonesInfo(sequelize);
+const defineBones = require('../Models/Bones');
+const Bones = defineBones(sequelize);
 const { Op } = require('sequelize');
 
-exports.tokenDuration = 180000; // 3 minutes in ms
+const tokenDuration = 180000; // 3 minutes in ms
 
-exports.IDsByToken = {};
-exports.TokenTimestamps = {};
-exports.TokenTimers = {};
+const tokenRecords = {}
 
-exports.clearToken = (token, doClearTimeout = true) => {
+const clearToken = (token, doClearTimeout = true) => {
     try {
-        if (this.IDsByToken[token]) {
-            this.IDsByToken[token] = null;
-        }
-        if (this.TokenTimestamps[token]) {
-            this.TokenTimestamps[token] = null;
-        }
-        if (this.TokenTimers[token]) {
-            if (doClearTimeout)
-                clearTimeout(this.TokenTimers[token]);
-            this.TokenTimers[token] = null;
+        var tokenRecord = tokenRecords[token];
+        if (tokenRecord) {
+            if (tokenRecord.BonesID) {
+                tokenRecord.BonesID = null;
+            }
+            if (tokenRecord.TimeStamp) {
+                tokenRecord.TimeStamp = null;
+            }
+            if (tokenRecord.Timer) {
+                if (doClearTimeout) {
+                    clearTimeout(tokenRecord.Timer);
+                }
+                tokenRecord.Timer = null;
+            }
+            tokenRecords[token] = null;
         }
     }
     catch (error) {
@@ -33,36 +34,26 @@ exports.clearToken = (token, doClearTimeout = true) => {
 const getToken = (BonesID) => {
     try {
         var token = crypto.randomUUID();
-        this.IDsByToken[token] = BonesID;
-        this.TokenTimestamps[token] = Date.now();
-        this.TokenTimers[token] = setTimeout(async () => {
-            console.log('Expired token', token ?? 'NO_TOKEN', ',', 'deleting dataless BonesInfo:', BonesID);
-            var deleteSpec = false;
-            try {
-                await BonesInfo.destroy({
-                    where: {
-                        ID: BonesID,
-                        SavGz: { [Op.is]: null },
-                    }
-                });
-                deleteSpec = true;
-            }
-            catch (error) {
-                console.log('Error deleting BonesInfo', BonesID ?? 'NO_BONES_ID', ',', error.message);
-            }
-
-            if (deleteSpec) {
+        tokenRecords[token] = {
+            BonesID: BonesID,
+            TimeStamp: Date.now(),
+            Timer: setTimeout(async () => {
+                console.log('Expired token', token ?? 'NO_TOKEN', ',', 'deleting dataless Bones:', BonesID);
                 try {
-                    await BonesSpec.destroy({
-                        where: { ID: BonesID, }
+                    await Bones.destroy({
+                        where: {
+                            ID: BonesID,
+                            SavGz: { [Op.is]: null },
+                        }
                     });
                 }
                 catch (error) {
-                    console.log('Error deleting BonesSpec', BonesID ?? 'NO_BONES_ID', ',', error.message);
+                    console.log('Error deleting Bones', BonesID ?? 'NO_BONES_ID', ',', error.message);
                 }
-            }
-            this.clearToken(token, false);
-        }, this.tokenDuration)
+
+                clearToken(token, false);
+            }, tokenDuration),
+        };
         return token;
     }
     catch (error) {
@@ -70,7 +61,7 @@ const getToken = (BonesID) => {
     }
 }
 
-exports.allow = (req, res, next) => {
+const allow = (req, res, next) => {
     try {
         req.token = getToken(req.body.BonesID);
         console.log('BonesID:', req.body.BonesID, 'token:', req.token);
@@ -84,7 +75,7 @@ exports.allow = (req, res, next) => {
     }
 };
 
-exports.check = (req, res, next) => {
+const check = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
         console.log('No authorization header provided');
@@ -92,25 +83,31 @@ exports.check = (req, res, next) => {
             error: 'No authorization header provided'
         });
     }
-    
-    if (this.IDsByToken[authHeader] != req.params.BonesID) {
+
+    var tokenRecord = tokenRecords[authHeader];
+    if (!tokenRecord) {
+        console.log('Authorization token missing');
+        return res.status(401).json({
+            error: 'Authorization token missing'
+        });
+    }
+    if (tokenRecord.BonesID != req.params.BonesID) {
         console.log('Authorization token invalid');
         return res.status(401).json({
             error: 'Authorization token invalid'
         });
     }
 
-    const tokenTimeStamp = this.TokenTimestamps[authHeader];
-    if (!tokenTimeStamp) {
+    if (!tokenRecord.TimeStamp) {
         console.log('Authorization token missing');
         return res.status(401).json({
             error: 'Authorization token missing'
         });
     }
 
-    const checkValue = Date.now() - tokenTimeStamp;
-    if (checkValue > this.tokenDuration) {
-        this.clearToken(req.token);
+    const checkValue = Date.now() - tokenRecord.TimeStamp;
+    if (checkValue > tokenDuration) {
+        clearToken(req.token);
         console.log('Authorization token expired');
         return res.status(401).json({
             error: 'Authorization token expired'
@@ -122,9 +119,18 @@ exports.check = (req, res, next) => {
         next();
     }
     catch (error) {
-        console.log('Failed to assign token to request');
-        const err = new Error(`Failed to assign token to request, ${error.message}`);
+        var errorMsg = `Failed to assign token to request, ${error.message}`;
+        console.log(errorMsg);
+        const err = new Error(errorMsg);
         err.status = 500;
         next(err);
     }
 };
+
+module.exports = {
+    tokenDuration,
+    tokenRecords,
+    clearToken,
+    allow,
+    check,
+}

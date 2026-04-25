@@ -6,6 +6,5 @@
   <ItemGroup>
     <Folder Include="Common\Middlewares\" />
     <Folder Include="BonesInfo\" />
-    <Folder Include="Storage\" />
   </ItemGroup>
 </Project>

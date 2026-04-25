@@ -1,89 +1,66 @@
 const sequelize = require('../Common/database');
-const defineBonesSpec = require('../Common/Models/BonesSpec');
-const BonesSpec = defineBonesSpec(sequelize);
-
-const createBonesSpec = async (req, res) => {
-    try {
-        const {
-            BonesID,
-            Level,
-            ZoneID,
-            ZoneZ,
-            ZoneTier,
-            ZoneTerrainType,
-            RegionTier,
-            TerrainTravelClass,
-        } = req.body;
-
-        const bonesSpec = await BonesSpec.create({
-            ID: BonesID,
-            Level: Level,
-            ZoneID: ZoneID,
-            ZoneZ: ZoneZ,
-            ZoneTier: ZoneTier,
-            ZoneTerrainType: ZoneTerrainType,
-            RegionTier: RegionTier,
-            TerrainTravelClass: TerrainTravelClass,
-        });
-
-        res.status(201).json({
-            success: true,
-            boneSpec: {
-                BonesID: bonesSpec.ID,
-                Level: bonesSpec.Level,
-                ZoneID: bonesSpec.ZoneID,
-                Uploaded: bonesSpec.createdAt,
-            },
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error creating BonesSpec',
-            error: error.message
-        });
-    }
-};
+const defineBones = require('../Common/Models/Bones');
+const Bones = defineBones(sequelize);
+const { Op } = require('sequelize');
 
 const getBonesSpec = async (req, res) => {
+    let bonesID;
     try {
-        const bonesSpec = await BonesSpec.findByPk(req.params.BonesID);
-        if (!bonesSpec)
+        bonesID = req.params.BonesID
+        const bones = await Bones.findByPk(bonesID);
+        if (!bones)
             return res.status(404).json({
                 success: false,
-                error: 'BonesSpec not found: ' + req.params
+                error: `Bones Spec not found: ${bonesID}`
             });
 
         res.status(200).json({
             success: true,
-            data: bonesSpec
+            BonesSpec: bones.SaveBonesJSON.BonesSpec,
         });
     }
     catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error retrieving BonesSpec',
+            message: `Error retrieving Bones Spec: ${bonesID}`,
             error: error.message
         });
     }
 };
 
-const getAllBonesSpec = async (req, res) => {
-    const bonesSpec = await BonesSpec.findAll();
+const getAllBonesSpecs = async (req, res) => {
+    try {
+        const allBonesInfos = await Bones.findAll({
+            attributes: ['SaveBonesJSON'],
+            where: {
+                SavGz: { [Op.not]: null },
+            },
+        });
+        if (!allBonesInfos)
+            return res.status(204).json({
+                success: true,
+                message: 'No Bones, but no errors'
+            });
 
-    if (bonesSpec.length < 1)
-        return res.status(204).json({
+        let bonesSpecs = new Array();
+        for (let i = 0; i < allBonesInfos.length; i++) {
+            bonesSpecs[i] = allBonesInfos[i].SaveBonesJSON.BonesSpec;
+        }
+        res.status(200).json({
             success: true,
-            message: 'No BonesSpecs, but no errors'
-        })
-
-    res.status(200).json({
-        success: true,
-        data: bonesSpec
-    });
+            data: bonesSpecs
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving All BonesSpecs',
+            error: error.message
+        });
+    }
 };
 
 module.exports = {
-    createBonesSpec,
     getBonesSpec,
-    getAllBonesSpec,
+    getAllBonesSpecs,
 };
