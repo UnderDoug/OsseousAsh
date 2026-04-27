@@ -47,7 +47,6 @@ main.get('/status', async (req, res) => {
         timestamp: new Date().toISOString(),
         records: {
             BonesInfo: await getRecordCount(Bones),
-            BonesSpec: await getRecordCount(BonesSpec),
         }
     });
 });
