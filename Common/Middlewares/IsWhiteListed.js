@@ -24,28 +24,33 @@ const check = async (req, res, next) => {
             }
         }
 
-        var {
-            BonesID,
-            SaveBonesJSON
-        } = req.body;
+        var osseousAshID = req.params.OAID
 
-        if (req.token) {
-            const tokenRecord = tokenRecords[req.token];
-            if (tokenRecord) {
-                BonesID = tokenRecord.BonesID;
-                console.log(BonesID);
-                if (BonesID) {
-                    const bonesInfo = await BonesInfo.findByPk(BonesID);
-                    if (bonesInfo
-                        && bonesInfo.SaveBonesJSON) {
-                        SaveBonesJSON = bonesInfo.SaveBonesJSON;
+        if (!osseousAshID) {
+
+            var {
+                BonesID,
+                SaveBonesJSON
+            } = req.body;
+
+            if (req.token) {
+                const tokenRecord = tokenRecords[req.token];
+                if (tokenRecord) {
+                    BonesID = tokenRecord.BonesID;
+                    console.log(BonesID);
+                    if (BonesID) {
+                        const bonesInfo = await BonesInfo.findByPk(BonesID);
+                        if (bonesInfo
+                            && bonesInfo.SaveBonesJSON) {
+                            SaveBonesJSON = bonesInfo.SaveBonesJSON;
+                        }
                     }
                 }
             }
+
+            osseousAshID ??= SaveBonesJSON?.OsseousAshID;
         }
-
-        const osseousAshID = SaveBonesJSON?.OsseousAshID;
-
+        
         if (WHITELIST.OsseousAshID.length > 0) {
             var iDPassed = false;
             if (osseousAshID) {

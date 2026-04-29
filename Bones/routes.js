@@ -13,7 +13,7 @@ router.put('/Bones/SavGz/:BonesID', check, checkWL, BonesController.addBonesSavG
 // tba
 
 // list IDs
-router.get('/Bones/ID', BonesController.checkBonesID);
+router.get('/Bones/ID/:BonesID', BonesController.checkBonesID);
 router.get('/Bones/IDs', BonesController.getAllBonesIDs);
 
 // delete bones

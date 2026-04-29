@@ -159,7 +159,8 @@ const getAllBonesIDs = async (req, res) => {
                 SavGz: { [Op.not]: null },
             },
         });
-        if (!bonesInfoIDs)
+        if (!bonesInfoIDs
+            || bonesInfoIDs.length == 0)
             return res.status(204).json({
                 success: true,
                 message: 'No BonesIDs, but no errors'
@@ -223,7 +224,8 @@ const deleteAllBones = async (req, res) => {
     try {
         const bonesInfos = await Bones.findAll();
 
-        noInfos = !bonesInfos;
+        noInfos = !bonesInfos
+            || bonesInfos.length == 0;
         
         if (!noInfos) {
             for (let i = 0; i < bonesInfos.length; i++) {

@@ -20,8 +20,10 @@ sequelize.authenticate()
 
 // sequelize models
 const defineBones = require('./Common/Models/Bones');
+const defineReport = require('./Common/Models/Report');
 
 const Bones = defineBones(sequelize);
+const Report = defineReport(sequelize);
 
 // sync and "on connection" start-up.
 const BonesController = require('./Bones/controller');
@@ -36,10 +38,12 @@ sequelize.sync()
 const bonesRoutes = require('./Bones/routes');
 const bonesInfoRoutes = require('./BonesInfo/routes');
 const bonesSpecRoutes = require('./BonesSpec/routes');
+const reportRoutes = require('./Report/routes');
 
 main.use('/', bonesRoutes);
 main.use('/', bonesInfoRoutes);
 main.use('/', bonesSpecRoutes);
+main.use('/', reportRoutes);
 
 const getRecordCount = async (model) => {
     return (await model.findAll()).length;
@@ -50,14 +54,15 @@ main.get('/status', async (req, res) => {
         status: 'Running',
         timestamp: new Date().toISOString(),
         records: {
-            BonesInfo: await getRecordCount(Bones),
+            Bones: await getRecordCount(Bones),
+            Reports: await getRecordCount(Report),
         }
     });
 });
 
 const checkWL = require('./Common/Middlewares/IsWhiteListed').check;
 
-main.get('/canUp', checkWL, async (req, res) => {
+main.get('/canUp/:OAID', checkWL, async (req, res) => {
     res.status(200).json(true);
 });
 

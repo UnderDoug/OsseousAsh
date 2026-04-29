@@ -36,7 +36,8 @@ const getAllBonesSpecs = async (req, res) => {
                 SavGz: { [Op.not]: null },
             },
         });
-        if (!allBonesInfos)
+        if (!allBonesInfos
+            || allBonesInfos.length == 0)
             return res.status(204).json({
                 success: true,
                 message: 'No Bones, but no errors'
