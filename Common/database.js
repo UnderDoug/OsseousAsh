@@ -1,18 +1,21 @@
+require('dotenv').config();
 const { Sequelize } = require('sequelize');
-const args = process.argv.slice(2);
 
-var username = args[0] ?? '';
-var password = args[1] ?? '';
-
-var host = args[2] ?? 'localhost'
+const dbConfig = {
+    name: process.env.DB_NAME || 'OsseousAsh',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || '',
+    password: process.env.DB_PASS || '',
+    dialect: process.env.DB_DIALECT || 'postgres',
+};
 
 const sequelize = new Sequelize(
-    'OsseousAsh',
-    username,
-    password,
+    dbConfig.name,
+    dbConfig.user,
+    dbConfig.password,
     {
-        host: host,
-        dialect: 'postgres'
+        host: dbConfig.host,
+        dialect: dbConfig.dialect,
     }
 );
 
