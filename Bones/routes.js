@@ -10,7 +10,9 @@ router.post('/Bones', checkWL, allow, BonesController.createBones);
 router.put('/Bones/SavGz/:BonesID', check, checkWL, BonesController.addBonesSavGz);
 
 // update bones stats
-// tba
+router.put('/Bones/Stats/:BonesID/:OAID', checkWL, BonesController.updateBonesStats);
+
+router.get('/Bones/SavGz/:BonesID', BonesController.getBonesSaveGz)
 
 // list IDs
 router.get('/Bones/ID/:BonesID', BonesController.checkBonesID);

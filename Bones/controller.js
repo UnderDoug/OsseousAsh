@@ -103,6 +103,75 @@ const addBonesSavGz = async (req, res) => {
     }
 };
 
+const updateBonesStats = async (req, res) => {
+    var catchMessage = '';
+    try {
+        const {
+            BonesID,
+            OAID,
+        } = req.params
+
+        const newSaveBonesJSON = req.body;
+
+        catchMessage = `Failed to find Bones: ${BonesID}`;
+        const bones = await Bones.findByPk(BonesID);
+
+        catchMessage = `Failed to update SaveBonesJSON: ${BonesID}`;
+        bones.update({
+            SaveBonesJSON: newSaveBonesJSON
+        });
+        catchMessage = `Failed to save SaveBonesJSON: ${BonesID}`;
+        await bones.save({
+            fields: ['SaveBonesJSON']
+        });
+
+        catchMessage = `Failed to reload Bones: ${BonesID}`;
+        await bones.reload();
+
+        catchMessage = `Failed to report susccess: ${BonesID}`;
+        var stats = {
+            Encountered: 0,
+            Defeated: 0,
+            Reclaimed: 0,
+        }
+        try {
+
+            const {
+                Encountered,
+                Defeated,
+                Reclaimed,
+            } = bones.SaveBonesJSON.Stats;
+
+            for (let i = 0; i < Encountered.length; i++) {
+                stats.Defeated += Encountered[i].Value;
+            }
+            for (let i = 0; i < Defeated.length; i++) {
+                stats.Encountered += Defeated[i].Value;
+            }
+            for (let i = 0; i < Reclaimed.length; i++) {
+                stats.Reclaimed += Reclaimed[i].Value;
+            }
+        }
+        catch (error) {
+            console.log('Failed to aggregate stats:', error.message)
+        }
+
+        res.status(200).json({
+            success: true,
+            BonesID: BonesID,
+            Stats: stats,
+        });
+    }
+    catch (error) {
+        console.log(`${catchMessage}:`, error.message)
+        res.status(500).json({
+            success: false,
+            message: catchMessage,
+            error: error.message
+        });
+    }
+};
+
 const getBonesSaveGz = async (req, res) => {
     let bonesID;
     try {
@@ -305,6 +374,7 @@ const tidyBones = async () => {
 module.exports = {
     createBones,
     addBonesSavGz,
+    updateBonesStats,
     getBonesSaveGz,
     checkBonesID,
     getAllBonesIDs,

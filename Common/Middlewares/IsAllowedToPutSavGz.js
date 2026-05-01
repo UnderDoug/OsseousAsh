@@ -84,7 +84,15 @@ const check = (req, res, next) => {
         });
     }
 
-    var tokenRecord = tokenRecords[authHeader];
+    const [type, token] = authHeader.split(' ');
+    if (type != 'basic') {
+        console.log('Authorization token missing');
+        return res.status(401).json({
+            error: 'Authorization token missing'
+        });
+    }
+
+    var tokenRecord = tokenRecords[token];
     if (!tokenRecord) {
         console.log('Authorization token missing');
         return res.status(401).json({
@@ -115,7 +123,7 @@ const check = (req, res, next) => {
     }
 
     try {
-        req.token = authHeader;
+        req.token = token;
         next();
     }
     catch (error) {

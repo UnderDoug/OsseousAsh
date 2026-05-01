@@ -38,6 +38,7 @@ const createReport = async (req, res) => {
             Type,
             ObjectDetails,
             Description,
+            Actioned,
         } = req.body;
 
         catchMessage = "Failed to create Report";
@@ -47,14 +48,21 @@ const createReport = async (req, res) => {
             Type: Type,
             ObjectDetails: ObjectDetails,
             Description: Description,
+            Actioned: Actioned,
         });
 
         res.status(201).json({
             success: true,
-            report,
+            report: report,
         });
     }
     catch (error) {
+        console.log({
+            status: 500,
+            success: false,
+            message: catchMessage,
+            error: error.message
+        });
         res.status(500).json({
             success: false,
             message: catchMessage,
