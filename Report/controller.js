@@ -154,6 +154,9 @@ const getReports = async (req, res) => {
 
         const reports = await Report.findAll({
             where: condition,
+            order: [
+                ['createdAt', 'DESC']
+            ],
         });
 
         if (!reports
@@ -198,10 +201,17 @@ const getAllReports = async (req, res) => {
             || bonesID) {
             reportsRaw = await Report.findAll({
                 where: condition,
+                order: [
+                    ['createdAt', 'DESC']
+                ],
             });
         }
         else {
-            reportsRaw = await Report.findAll();
+            reportsRaw = await Report.findAll({
+                order: [
+                    ['createdAt', 'DESC']
+                ],
+            });
         }
         const reports = reportsRaw;
 

@@ -35,6 +35,9 @@ const getAllBonesInfo = async (req, res) => {
             where: {
                 SavGz: { [Op.not]: null },
             },
+            order: [
+                ['createdAt', 'DESC']
+            ],
         });
         if (!allBonesInfos
             || allBonesInfos.length == 0)
