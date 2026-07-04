@@ -1,7 +1,6 @@
-const sequelize = require('../database');
-const defineBones = require('../Models/Bones');
-const Bones = defineBones(sequelize);
+const { logger } = require('../logger');
 const { Op } = require('sequelize');
+const { Bones } = require('../Models/Bones');
 
 const tokenDuration = 180000; // 3 minutes in ms
 
@@ -61,7 +60,7 @@ const getToken = (BonesID) => {
     }
 }
 
-const allow = (req, res, next) => {
+const produceToken = (req, res, next) => {
     try {
         req.token = getToken(req.body.BonesID);
         console.log('BonesID:', req.body.BonesID, 'token:', req.token);
@@ -75,7 +74,7 @@ const allow = (req, res, next) => {
     }
 };
 
-const check = (req, res, next) => {
+const checkToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
         console.log('No authorization header provided');
@@ -139,6 +138,6 @@ module.exports = {
     tokenDuration,
     tokenRecords,
     clearToken,
-    allow,
-    check,
+    produceToken,
+    checkToken,
 }

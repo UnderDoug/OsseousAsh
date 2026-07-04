@@ -3,8 +3,4 @@
     <None Remove=".vscode\**" />
     <TypeScriptConfiguration Remove=".vscode\**" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Common\Middlewares\" />
-    <Folder Include="BonesInfo\" />
-  </ItemGroup>
 </Project>

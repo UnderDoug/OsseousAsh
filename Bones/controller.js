@@ -1,8 +1,7 @@
-const sequelize = require('../Common/database');
-const defineBones = require('../Common/Models/Bones');
-const Bones = defineBones(sequelize);
-const { tokenRecords, clearToken } = require('../Common/Middlewares/IsAllowedToPutSavGz');
+const { logger } = require('../Common/logger');
 const { Op } = require('sequelize');
+const { tokenRecords, clearToken } = require('../Common/Middlewares/IsAllowedToPutSavGz');
+const { Bones } = require('../Common/Models/Bones');
 
 const Ajv = require('ajv');
 const ajv = new Ajv();
@@ -30,38 +29,77 @@ const createBones = async (req, res) => {
         });
     }*/
 
-    var catchMessage = "";
+    var catchMessage = "Top of the run";
     try {
         const {
             BonesID,
             SaveBonesJSON,
-            Size,
         } = req.body;
 
-        catchMessage = "Failed to create BonesInfo";
-        const bonesInfo = await Bones.create({
-            ID: BonesID,
-            SaveBonesJSON: SaveBonesJSON,
-            Size: Size,
-        });
+        var bones = null;
+
+        try {
+            catchMessage = `Failed while checking existing Bones: ${BonesID}`;
+            bones = await Bones.findOne({
+                where: {
+                    ID: BonesID,
+                },
+            });
+        }
+        catch (error) {
+            logger.warn({
+                message: catchMessage,
+                error: error.message
+            });
+        }
+
+        if (!bones) {
+            catchMessage = `Failed to create Bones: ${BonesID}`;
+            bones = await Bones.create({
+                ID: BonesID,
+                SaveBonesJSON: SaveBonesJSON,
+            });
+        }
+        else {
+            catchMessage = `Failed to update Bones: ${BonesID}`;
+
+            bones.update({
+                ID: BonesID,
+                SaveBonesJSON: SaveBonesJSON,
+                SavGz: null,
+            });
+
+            catchMessage = `Failed to save Bones: ${BonesID}`;
+            await bones.save({
+                fields: ['BonesID', 'SaveBonesJSON', 'SavGz']
+            });
+
+            catchMessage = `Failed to reload Bones: ${BonesID}`;
+            await bones.reload();
+        }
+
+        if (!bones) {
+            throw new Error('null Bones after creation/update');
+        }
 
         res.status(201).json({
             success: req.token,
             BonesID: BonesID,
-            BonesInfo: bonesInfo.SaveBonesJSON,
+            BonesInfo: bones.SaveBonesJSON,
             SavGz: {
-                Size: `${bonesInfo.Size/1000} KB`,
+                Size: `${bones.Size/1000} KB`,
                 Data: 'to be PUT directly',
             },
-            Uploaded: bonesInfo.createdAt,
+            Uploaded: bones.createdAt,
         });
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: catchMessage,
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -87,16 +125,14 @@ const addBonesSavGz = async (req, res) => {
         await bones.reload();
 
         res.status(201).json({
-            success: true,
             BonesID: bonesID,
             SavGz: `${(Uint8Array.from(bones.SavGz).byteLength / 1000)} KB`,
         });
         clearToken(req.token);
     }
     catch (error) {
-        console.log(catchMessage, error.message)
+        logger.error(catchMessage, error.message);
         res.status(500).json({
-            success: false,
             message: catchMessage,
             error: error.message
         });
@@ -116,6 +152,14 @@ const updateBonesStats = async (req, res) => {
         catchMessage = `Failed to find Bones: ${BonesID}`;
         const bones = await Bones.findByPk(BonesID);
 
+        if (!bones) {
+            var output = {
+                error: `Bones Info not found: ${bonesID}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
         catchMessage = `Failed to update SaveBonesJSON: ${BonesID}`;
         bones.update({
             SaveBonesJSON: newSaveBonesJSON
@@ -130,45 +174,79 @@ const updateBonesStats = async (req, res) => {
 
         catchMessage = `Failed to report susccess: ${BonesID}`;
         var stats = {
+            LastEncountered: 'null',
             Encountered: 0,
             Defeated: 0,
             Reclaimed: 0,
-        }
+            Broken: 0,
+        };
+        var caughtEx = null;
         try {
-
+            catchMessage = `Failed to extract Stats`;
             const {
+                LastEncountered,
                 Encountered,
                 Defeated,
                 Reclaimed,
-            } = bones.SaveBonesJSON.Stats;
+                Broken,
+            } = newSaveBonesJSON.Stats;
 
-            for (let i = 0; i < Encountered.length; i++) {
-                stats.Defeated += Encountered[i].Value;
+            if (LastEncountered > 0) {
+                catchMessage = `Failed to make Date`;
+                let t = (BigInt(LastEncountered) - 621355968000000000n) / 10000n;
+                let d = new Date(Number(t));
+                stats.LastEncountered = d.toISOString();
             }
-            for (let i = 0; i < Defeated.length; i++) {
-                stats.Encountered += Defeated[i].Value;
+            if (Encountered) {
+                catchMessage = `Failed to increment Encountered`;
+                for (let i = 0; i < Encountered.length; i++) {
+                    stats.Encountered += Encountered[i].Value;
+                }
             }
-            for (let i = 0; i < Reclaimed.length; i++) {
-                stats.Reclaimed += Reclaimed[i].Value;
+            if (Defeated) {
+                catchMessage = `Failed to increment Defeated`;
+                for (let i = 0; i < Defeated.length; i++) {
+                    stats.Defeated += Defeated[i].Value;
+                }
+            }
+            if (Reclaimed) {
+                catchMessage = `Failed to increment Reclaimed`;
+                for (let i = 0; i < Reclaimed.length; i++) {
+                    stats.Reclaimed += Reclaimed[i].Value;
+                }
+            }
+            if (Broken) {
+                catchMessage = `Failed to increment Broken`;
+                for (let i = 0; i < Broken.length; i++) {
+                    stats.Broken += Broken[i].Value;
+                }
             }
         }
         catch (error) {
-            console.log('Failed to aggregate stats:', error.message)
+            console.log('Failed to aggregate stats:', error.message);
+            caughtEx = {
+                error: `Failed to aggregate stats: ${error}`,
+                catch: catchMessage,
+            };
         }
 
-        res.status(200).json({
-            success: true,
+        var output = {
             BonesID: BonesID,
             Stats: stats,
-        });
+        };
+        if (caughtEx) {
+            output.info = caughtEx;
+        }
+
+        res.status(200).json(output);
     }
     catch (error) {
-        console.log(`${catchMessage}:`, error.message)
-        res.status(500).json({
-            success: false,
+        var output = {
             message: catchMessage,
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -177,22 +255,60 @@ const getBonesSaveGz = async (req, res) => {
     try {
         bonesID = req.params.BonesID
         const bonesInfo = await Bones.findByPk(bonesID);
-        if (!bonesInfo)
-            return res.status(404).json({
-                success: false,
+        if (!bonesInfo) {
+            var output = {
                 error: `Bones SavGz not found: ${bonesID}`
-            });
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
 
         res.status(200)
             .set({ 'Content-Type': 'application/octet-stream' })
             .send(Uint8Array.from(bonesInfo.SavGz));
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: `Error retrieving Bones SavGz: ${bonesID}`,
             error: error.message
+        };
+        logger.error(output);
+        res.status(500).json(output);
+    }
+};
+
+const postDownloadBones = async (req, res) => {
+    let bonesID;
+    try {
+        bonesID = req.params.BonesID
+        const bones = await Bones.findOne({
+            where: {
+                ID: bonesID,
+                SavGz: { [Op.not]: null },
+            },
         });
+
+        if (!bones) {
+            var output = {
+                error: `Bones not found: ${bonesID}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        res.status(200).json({
+            success: true,
+            SaveBonesJSON: bones.SaveBonesJSON,
+            SavGz: Uint8Array.from(bones.SavGz),
+        });
+    }
+    catch (error) {
+        var output = {
+            message: `Error retrieving Bones for download: ${bonesID}`,
+            error: error.message
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -201,22 +317,25 @@ const checkBonesID = async (req, res) => {
     try {
         bonesID = req.params.BonesID;
         const bones = await Bones.findByPk(bonesID);
-        if (!bones)
-            return res.status(404).json({
-                success: false,
+        if (!bones) {
+            var output = {
                 error: `BonesID not found: ${bonesID}`
-            });
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
 
         res.status(200).json({
             success: true,
         });
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: `Error retrieving BonesID: ${bonesID}`,
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -232,28 +351,28 @@ const getAllBonesIDs = async (req, res) => {
             ],
         });
         if (!bonesInfoIDs
-            || bonesInfoIDs.length == 0)
-            return res.status(204).json({
-                success: true,
+            || bonesInfoIDs.length == 0) {
+            var output = {
                 message: 'No BonesIDs, but no errors'
-            });
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
 
         let bonesIDs = new Array();
         for (let i = 0; i < bonesInfoIDs.length; i++) {
             bonesIDs[i] = bonesInfoIDs[i].ID;
         }
 
-        res.status(200).json({
-            success: true,
-            data: bonesIDs,
-        });
+        res.status(200).json(bonesIDs);
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: 'Error retrieving All BonesIDs',
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -271,11 +390,12 @@ const deleteBones = async (req, res) => {
     }
     catch (error) {
         errors[errors.lenth + 1] = error.message;
-        res.status(500).json({
-            success: false,
+        var output = {
             message: `Error deleting bones with BonesID ${bonesID}`,
             error: error.message
-        });
+        };
+        logger.warn(output);
+        res.status(500).json(output);
     }
 
     var message = `No bones with with BonesID: ${bonesID}`;
@@ -283,7 +403,6 @@ const deleteBones = async (req, res) => {
         message = `Deleted bones with BonesID: ${bonesID}`;
 
     res.status(200).json({
-        success: true,
         message: message,
         errors: errors
     });
@@ -311,37 +430,40 @@ const deleteAllBones = async (req, res) => {
                     any = true;
                 }
                 catch (error) {
-                    res.status(500).json({
+                    var output = {
                         success: false,
                         message: 'Error deleting BonesInfo: ' + bonesInfo.ID,
                         error: error.message
-                    });
+                    };
+                    logger.error(output);
+                    res.status(500).json(output);
                 }
             }
         }
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: 'Error deleting Bones',
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 
-    if (!any)
-        return res.status(204).json({
-            success: true,
-            message: 'No bones, but no errors'
-        })
+    if (!any) {
+        res.status(204).json({
+            message: 'No Bones, but no errors'
+        });
+        return;
+    }
 
     res.status(200).json({
-        success: true,
         message: 'Deleted all Bones'
     });
 };
 
 const tidyBones = async () => {
-    console.log('Tidying bone fragments...');
+    logger.info('Tidying bone fragments...');
     try {
         const invalidBonesIDs = await Bones.findAll({
             attribute: ['ID'],
@@ -363,15 +485,15 @@ const tidyBones = async () => {
                     fragments++;
                 }
                 catch (error) {
-                    console.log(`Error tidying BonesInfo (${bonesID}) with null SavGz`, error.message);
+                    logger.error(`Error tidying BonesInfo (${bonesID}) with null SavGz`, error.message);
                 }
             }
         }
     }
     catch (error) {
-        console.log('Error tidying Bones', error.message);
+        logger.error('Error tidying Bones', error.message);
     }
-    console.log(fragments + ' bone fragments tidied!');
+    logger.info(fragments + ' bone fragments tidied!');
 }
 
 module.exports = {
@@ -379,6 +501,7 @@ module.exports = {
     addBonesSavGz,
     updateBonesStats,
     getBonesSaveGz,
+    postDownloadBones,
     checkBonesID,
     getAllBonesIDs,
     deleteBones,

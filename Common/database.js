@@ -1,14 +1,23 @@
 if (!process.env.NODE_ENV) {
     require('dotenv').config();
 }
+
+const {
+    DB_NAME,
+    DB_HOST,
+    DB_USER,
+    DB_PASS,
+    DB_DIALECT,
+} = process.env;
+
 const { Sequelize } = require('sequelize');
 
 const dbConfig = {
-    name: process.env.DB_NAME || 'OsseousAsh',
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || '',
-    password: process.env.DB_PASS || '',
-    dialect: process.env.DB_DIALECT || 'postgres',
+    name: DB_NAME || 'OsseousAsh',
+    host: DB_HOST || 'localhost',
+    user: DB_USER || '',
+    password: DB_PASS || '',
+    dialect: DB_DIALECT || 'postgres',
 };
 
 const sequelize = new Sequelize(

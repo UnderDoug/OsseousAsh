@@ -1,7 +1,6 @@
-const sequelize = require('../Common/database');
-const defineReport = require('../Common/Models/Report');
-const Report = defineReport(sequelize);
+const { logger } = require('../Common/logger');
 const { Op } = require('sequelize');
+const { Report } = require('../Common/Models/Report');
 
 /*const Ajv = require('ajv');
 const ajv = new Ajv();
@@ -33,7 +32,7 @@ const createReport = async (req, res) => {
     try {
         const {
             ID,
-            OsseousAshID,
+            UserID,
             BonesID,
             Type,
             ObjectDetails,
@@ -43,7 +42,7 @@ const createReport = async (req, res) => {
 
         catchMessage = "Failed to create Report";
         const report = await Report.create({
-            OsseousAshID: OsseousAshID,
+            UserID: UserID,
             BonesID: BonesID,
             Type: Type,
             ObjectDetails: ObjectDetails,
@@ -51,20 +50,10 @@ const createReport = async (req, res) => {
             Actioned: Actioned,
         });
 
-        res.status(201).json({
-            success: true,
-            report: report,
-        });
+        res.status(201).json(report);
     }
     catch (error) {
-        console.log({
-            status: 500,
-            success: false,
-            message: catchMessage,
-            error: error.message
-        });
-        res.status(500).json({
-            success: false,
+        logger.caught(res, 500, {
             message: catchMessage,
             error: error.message
         });
@@ -84,19 +73,28 @@ const getHasReported = async (req, res) => {
             },
         });
 
-        if (!reports
-            || reports.length == 0)
-            return res.status(204).json({
-                success: true
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
+                message: 'No Reports, but no errors'
             });
+            return;
+        }
+
+        var anyBlocked = true;
+        for (let i = 0; i < reports.length; i++) {
+            if (reports[i].Blocked) {
+                anyBlocked = true;
+                break;
+            }
+        }
 
         return res.status(200).json({
             reports: reports.length,
+            blocked: anyBlocked,
         });
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        logger.caught(res, 500, {
             message: `Error retrieving Reports, BonesID: ${bonesID}, OsseousAshID: ${OsseousAshID}`,
             error: error.message
         });
@@ -110,19 +108,14 @@ const getReport = async (req, res) => {
         const report = await Report.findByPk(reportID);
 
         if (!report)
-            return res.status(404).json({
-                success: false,
+            return res.status(204).json({
                 error: `Report not found: ${reportID}`
             });
 
-        res.status(200).json({
-            success: true,
-            report
-        });
+        res.status(200).json(report);
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        logger.caught(res, 500, {
             message: `Error retrieving Report: ${reportID}`,
             error: error.message
         });
@@ -146,12 +139,14 @@ const getReports = async (req, res) => {
         }
 
         if (!oAID
-            && !bonesID)
-            return res.status(500).json({
-                success: false,
+            && !bonesID) {
+            var output = {
                 message: 'Request requires at least one of BonesID or OsseousAshID',
-            });
-
+            };
+            logger.warn(output);
+            return res.status(500).json(output);
+        }
+           
         const reports = await Report.findAll({
             where: condition,
             order: [
@@ -159,21 +154,17 @@ const getReports = async (req, res) => {
             ],
         });
 
-        if (!reports
-            || reports.length == 0)
-            return res.status(204).json({
-                success: true,
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
                 message: 'No Reports, but no errors'
             });
+            return;
+        }
 
-        res.status(200).json({
-            success: true,
-            data: reports,
-        });
+        res.status(200).json(reports);
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        logger.caught(res, 500, {
             message: `Error retrieving Reports, BonesID: ${bonesID}, OsseousAshID: ${OsseousAshID}`,
             error: error.message
         });
@@ -215,24 +206,22 @@ const getAllReports = async (req, res) => {
         }
         const reports = reportsRaw;
 
-        if (!reports
-            || reports.length == 0)
-            return res.status(204).json({
-                success: true,
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
                 message: 'No Reports, but no errors'
             });
+            return;
+        }
 
-        res.status(200).json({
-            success: true,
-            data: reports,
-        });
+        res.status(200).json(reports);
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: 'Error retrieving All Reports',
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -242,23 +231,26 @@ const deleteReport = async (req, res) => {
         reportID = req.params.BonesID
         const report = await Report.findByPk(reportID);
 
-        if (!report)
-            return res.status(404).json({
-                success: false,
+        if (!report) {
+            var output = {
                 error: `Report not found: ${reportID}`
-            });
-
-        res.status(200).json({
-            success: true,
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+        var output = {
             message: `Deleted Report with ID: ${reportID}`
-        });
+        };
+        logger.info(output);
+        res.status(200).json(output);
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: `Error deleting Report: ${reportID}`,
             error: error.message
-        });
+        };
+        logger.error(output);
+        res.status(500).json(output);
     }
 };
 
@@ -293,12 +285,12 @@ const deleteAllReports = async (req, res) => {
         }
         const reports = reportsRaw;
 
-        if (!reports
-            || reports.length == 0)
-            return res.status(204).json({
-                success: true,
-                message: 'No reports, but no errors'
-            })
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
+                message: 'No Reports, but no errors'
+            });
+            return;
+        }
         
         for (let i = 0; i < reports.length; i++) {
             let report = reports[i];
@@ -317,12 +309,13 @@ const deleteAllReports = async (req, res) => {
         }
     }
     catch (error) {
-        res.status(500).json({
-            success: false,
+        var output = {
             message: 'Error deleting All Reports',
             error: error.message,
             reportErrors: errors,
-        });
+        }
+        logger.error(output);
+        res.status(500).json(output);
     }
 
     var message = `Deleted all Reports`;
@@ -333,13 +326,13 @@ const deleteAllReports = async (req, res) => {
     if (oAID) {
         message += `, OsseousAshID: ${oAID}`;
     }
-
-    res.status(200).json({
-        success: true,
+    var output = {
         deleted: deleteCount,
         message: message,
         reportErrors: errors,
-    });
+    };
+    logger.info(output);
+    res.status(200).json(output);
 };
 
 module.exports = {
