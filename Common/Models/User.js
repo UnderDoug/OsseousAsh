@@ -57,25 +57,25 @@ module.exports.User = class User extends Model {
             },
             {
                 defaultScope: {
-                    attributes: { exclude: ['Password'] },
+                    attributes: { exclude: ['ID', 'Password'] },
                 },
                 scopes: {
                     includePassword: {
                     },
                     pending: {
-                        attributes: { exclude: ['Password'] },
+                        attributes: { exclude: ['ID', 'Password'] },
                         where: {
                             Status: 'Pending',
                         },
                     },
                     disabled: {
-                        attributes: { exclude: ['Password'] },
+                        attributes: { exclude: ['ID', 'Password'] },
                         where: {
                             Status: 'Disabled',
                         },
                     },
                     canManage: {
-                        attributes: { exclude: ['Password'] },
+                        attributes: { exclude: ['ID', 'Password'] },
                         where: {
                             Status: 'Active',
                             Access: 'Manage',
