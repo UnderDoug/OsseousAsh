@@ -7,6 +7,7 @@ const TokenGenerator = require('../token-generator');
 const jwtGen = new TokenGenerator(JWT_SECRET_KEY, JWT_SECRET_KEY, { expiresIn: '2m' });
 const jwt = require('jsonwebtoken');
 
+
 module.exports.checkAuth = async (req, res, next) => {
     try {
         const rawToken = req.header("jwt_token_header");
@@ -40,6 +41,16 @@ module.exports.checkAuth = async (req, res, next) => {
         }
         next(err);
     }
+};
+
+module.exports.silentAuth = async (req, res, next) => {
+    try {
+        await this.checkAuth(req, res, next);
+    }
+    catch (error) {
+        logger.warn(error);
+    }
+    next();
 };
 
 module.exports.maybeCheckAuth = async (req, res, next) => {

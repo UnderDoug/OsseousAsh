@@ -50,11 +50,11 @@ const reportRoutes = require('./Report/routes');
     Report: require('./Report/routes'),
 }*/
 
-main.use('/api/', userRoutes);
-main.use('/api/', bonesRoutes);
-main.use('/api/', bonesInfoRoutes);
-main.use('/api/', bonesSpecRoutes);
-main.use('/api/', reportRoutes);
+main.use('/api/v1', userRoutes);
+main.use('/api/v1', bonesRoutes);
+main.use('/api/v1', bonesInfoRoutes);
+main.use('/api/v1', bonesSpecRoutes);
+main.use('/api/v1', reportRoutes);
 /*main.use('/', Routes.User);
 main.use('/', Routes.Bones);
 main.use('/', Routes.BonesInfo);

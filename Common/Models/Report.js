@@ -41,10 +41,10 @@ module.exports.Report = class Report extends Model {
             },
             {
                 scopes: {
-                    waiting: {
-                        where: {
-                            Actioned: 'Waiting',
-                        },
+                    defaultScope: {
+                        attributes: { exclude: ['ID'] },
+                    },
+                    withID: {
                     },
                     ofUser(UserID) {
                         return {
@@ -57,18 +57,17 @@ module.exports.Report = class Report extends Model {
                         return {
                             where: {
                                 BonesID: { [Op.is]: BonesID },
-                                SavGz: { [Op.is]: null },
                             },
                         };
                     },
                 },
-                freezeTableName: true,
                 sequelize: sequelize,
                 modelName: 'Report'
             }
         );
     };
     isNaughty() {
-        return this.getUser() && this.getUser().Naughty;
+        return this.getUser()
+            && this.getUser().Naughty;
     }
 }

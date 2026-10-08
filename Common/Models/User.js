@@ -57,25 +57,25 @@ module.exports.User = class User extends Model {
             },
             {
                 defaultScope: {
-                    attributes: { exclude: ['ID', 'Password'] },
+                    attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
                 },
                 scopes: {
                     includePassword: {
                     },
                     pending: {
-                        attributes: { exclude: ['ID', 'Password'] },
+                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
                         where: {
                             Status: 'Pending',
                         },
                     },
                     disabled: {
-                        attributes: { exclude: ['ID', 'Password'] },
+                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
                         where: {
                             Status: 'Disabled',
                         },
                     },
                     canManage: {
-                        attributes: { exclude: ['ID', 'Password'] },
+                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
                         where: {
                             Status: 'Active',
                             Access: 'Manage',
@@ -85,7 +85,6 @@ module.exports.User = class User extends Model {
                         attributes: ['ID', 'Handle'],
                     },
                 },
-                freezeTableName: true,
                 sequelize: sequelize,
                 modelName: 'User'
             }

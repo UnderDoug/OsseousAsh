@@ -3,28 +3,29 @@ const { request } = require('express');
 const ReportController = require('./controller');
 
 const { check } = require('../Common/Middlewares/IsWhiteListed');
+const { checkAuth } = require('./../Common/Middlewares/IsAuthenticated');
 
 // upload report
 router.post('/Report/new', check, ReportController.createReport);
 
 // update report
-// tba
+router.put('/Report/:ReportID', checkAuth, ReportController.updateReport);
 
 // check report exists from UserID
-router.get('/v1/Report/Check/:BonesID/:UserID', ReportController.getHasReported);
-router.get('/v1/ReportID/:ReportID', ReportController.getReports);
+router.get('/Report/Check/:BonesID/:UserID', ReportController.getHasReported);
+router.get('/Report/:ReportID', ReportController.getReport);
 
 // list report(s)
-router.get('/v1/Reports/:BonesID/:UserID', ReportController.getReports);
-router.get('/v1/Reports/User/:UserID', ReportController.getAllReports);
-router.get('/v1/Reports/Bones/:BonesID', ReportController.getAllReports);
-router.get('/v1/Reports', ReportController.getAllReports);
+router.post('/Reports/:BonesID/:UserID', checkAuth, ReportController.getReports);
+router.post('/Reports/User/:UserID', checkAuth, ReportController.getAllReports);
+router.post('/Reports/Bones/:BonesID', checkAuth, ReportController.getAllReports);
+router.post('/Reports', checkAuth, ReportController.getAllReports);
 
 // delete report(s)
-router.delete('/v1/Report/del/:ReportID', ReportController.deleteReport);
-router.delete('/v1/del/Reports/:BonesID/:UserID', ReportController.deleteAllReports);
-router.delete('/v1/del/Reports/User/:UserID', ReportController.deleteAllReports);
-router.delete('/v1/del/Reports/Bones/:BonesID', ReportController.deleteAllReports);
-router.delete('/v1/del/Reports', ReportController.deleteAllReports);
+router.delete('/Report/del/:ReportID', ReportController.deleteReport);
+router.delete('/del/Reports/:BonesID/:UserID', ReportController.deleteAllReports);
+router.delete('/del/Reports/User/:UserID', ReportController.deleteAllReports);
+router.delete('/del/Reports/Bones/:BonesID', ReportController.deleteAllReports);
+router.delete('/del/Reports', ReportController.deleteAllReports);
 
 module.exports = router;

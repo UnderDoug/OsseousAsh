@@ -1,6 +1,8 @@
 const { logger } = require('../Common/logger');
 const { Op } = require('sequelize');
 const { Report } = require('../Common/Models/Report');
+const { Bones } = require('../Common/Models/Bones');
+const { User } = require('../Common/Models/User');
 
 /*const Ajv = require('ajv');
 const ajv = new Ajv();
@@ -60,15 +62,74 @@ const createReport = async (req, res) => {
     }
 };
 
+const updateReport = async (req, res) => {
+    var catchMessage = '';
+    try {
+        const ReportID = req.params.ReportID
+
+        catchMessage = `Failed to find Report: ${ReportID}`;
+        const report = await Report.findByPk(ReportID);
+
+        if (!report) {
+            var output = {
+                error: `Report not found: ${ReportID}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        if (!req.body.Actioned) {
+            var output = {
+                error: `No action with which to update`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        catchMessage = `Failed to update Report: ${ReportID}`;
+        report.update({
+            Actioned: req.body.Actioned
+        });
+        catchMessage = `Failed to save Report: ${ReportID}`;
+        await bones.save({
+            fields: ['Actioned']
+        });
+
+        catchMessage = `Failed to reload Report: ${ReportID}`;
+        await bones.reload();
+
+        catchMessage = `Failed to report susccess: ${ReportID}`;
+        
+        var output = {
+            User: `${req.token.user.UserID}`,
+            Stats: report,
+        };
+        if (caughtEx) {
+            output.info = caughtEx;
+        }
+
+        logger.info(output);
+        res.status(200).json(output);
+    }
+    catch (error) {
+        var output = {
+            message: catchMessage,
+            error: error.message
+        };
+        logger.error(output);
+        res.status(500).json(output);
+    }
+};
+
 const getHasReported = async (req, res) => {
-    let oAID;
+    let userID;
     let bonesID;
     try {
-        oAID = req.params.OAID
+        userID = req.params.UserID
         bonesID = req.params.BonesID
         const reports = await Report.findAll({
             where: {
-                OsseousAshID: oAID,
+                UserID: userID,
                 BonesID: bonesID,
             },
         });
@@ -95,7 +156,7 @@ const getHasReported = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving Reports, BonesID: ${bonesID}, OsseousAshID: ${OsseousAshID}`,
+            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
             error: error.message
         });
     }
@@ -104,7 +165,7 @@ const getHasReported = async (req, res) => {
 const getReport = async (req, res) => {
     let reportID;
     try {
-        reportID = req.params.BonesID
+        reportID = req.params.ReportID
         const report = await Report.findByPk(reportID);
 
         if (!report)
@@ -123,25 +184,25 @@ const getReport = async (req, res) => {
 };
 
 const getReports = async (req, res) => {
-    let oAID;
+    let userID;
     let bonesID;
     try {
-        oAID = req.params.OAID
+        userID = req.params.UserID
         bonesID = req.params.BonesID
 
         var condition = {};
 
-        if (oAID) {
-            condition.OsseousAshID = oAID;
+        if (userID) {
+            condition.UserID = userID;
         }
         if (bonesID) {
             condition.BonesID = bonesID;
         }
 
-        if (!oAID
+        if (!userID
             && !bonesID) {
             var output = {
-                message: 'Request requires at least one of BonesID or OsseousAshID',
+                message: 'Request requires at least one of BonesID or UserID',
             };
             logger.warn(output);
             return res.status(500).json(output);
@@ -165,30 +226,30 @@ const getReports = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving Reports, BonesID: ${bonesID}, OsseousAshID: ${OsseousAshID}`,
+            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
             error: error.message
         });
     }
 };
 
 const getAllReports = async (req, res) => {
-    let oAID;
+    let userID;
     let bonesID;
     try {
-        oAID = req.params.OAID
+        userID = req.params.UserID
         bonesID = req.params.BonesID
 
         var condition = {};
 
-        if (oAID) {
-            condition.OsseousAshID = oAID;
+        if (userID) {
+            condition.UserID = userID;
         }
         if (bonesID) {
             condition.BonesID = bonesID;
         }
 
         var reportsRaw = null;
-        if (oAID
+        if (userID
             || bonesID) {
             reportsRaw = await Report.findAll({
                 where: condition,
@@ -255,26 +316,26 @@ const deleteReport = async (req, res) => {
 };
 
 const deleteAllReports = async (req, res) => {
-    let oAID;
+    let userID;
     let bonesID;
     let deleteCount = 0;
     var errors = {};
     var errorCount = 0;
     try {
-        oAID = req.params.OAID
+        userID = req.params.UserID
         bonesID = req.params.BonesID
 
         var condition = {};
 
-        if (oAID) {
-            condition.OsseousAshID = oAID;
+        if (userID) {
+            condition.UserID = userID;
         }
         if (bonesID) {
             condition.BonesID = bonesID;
         }
 
         var reportsRaw = null;
-        if (oAID
+        if (userID
             || bonesID) {
             reportsRaw = await Report.findAll({
                 where: condition,
@@ -323,8 +384,8 @@ const deleteAllReports = async (req, res) => {
     if (bonesID) {
         message += `, BonesID: ${bonesID}`;
     }
-    if (oAID) {
-        message += `, OsseousAshID: ${oAID}`;
+    if (userID) {
+        message += `, UserID: ${userID}`;
     }
     var output = {
         deleted: deleteCount,
@@ -337,6 +398,7 @@ const deleteAllReports = async (req, res) => {
 
 module.exports = {
     createReport,
+    updateReport,
     getHasReported,
     getReport,
     getReports,

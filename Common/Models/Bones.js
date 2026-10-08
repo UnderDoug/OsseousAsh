@@ -49,19 +49,21 @@ module.exports.Bones = class Bones extends Model {
                     ofUser(UserID) {
                         return {
                             where: {
-                                User: { [Op.is]: UserID },
+                                UserID: { [Op.is]: UserID },
                                 SavGz: { [Op.is]: null },
                             },
                         };
                     },
                 },
-                freezeTableName: true,
                 sequelize: sequelize,
-                modelName: 'Bones'
+                modelName: 'Bones',
+                /*timestamps: true,
+                createdAt: false,*/
             }
         );
     };
     isNaughty() {
-        return this.getUser() && this.getUser().Naughty;
+        return this.getUser()
+            && this.getUser().Naughty;
     }
 }

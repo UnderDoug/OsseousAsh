@@ -2,6 +2,8 @@ const { logger } = require('../Common/logger');
 const { Op } = require('sequelize');
 const { tokenRecords, clearToken } = require('../Common/Middlewares/IsAllowedToPutSavGz');
 const { Bones } = require('../Common/Models/Bones');
+const { User } = require('../Common/Models/User');
+const Spec = require('../Common/Models/BonesSpec').BonesSpec;
 
 const Ajv = require('ajv');
 const ajv = new Ajv();
@@ -34,9 +36,11 @@ const createBones = async (req, res) => {
         const {
             BonesID,
             SaveBonesJSON,
+            BonesSpec,
         } = req.body;
 
         var bones = null;
+        var spec = null;
 
         try {
             catchMessage = `Failed while checking existing Bones: ${BonesID}`;
@@ -82,10 +86,67 @@ const createBones = async (req, res) => {
             throw new Error('null Bones after creation/update');
         }
 
+        try {
+            catchMessage = `Failed while checking existing BonesSpecs: ${BonesID}`;
+            spec = await Spec.findOne({
+                where: {
+                    BonesID: BonesID,
+                },
+            })
+        }
+        catch (error) {
+            logger.warn({
+                message: catchMessage,
+                error: error.message
+            });
+        }
+
+        if (!spec) {
+            catchMessage = `Failed to create BonesSpec: ${BonesID}`;
+            await Spec.create({
+                BonesID: BonesSpec.BonesID,
+                Level: BonesSpec.Level,
+                ZoneID: BonesSpec.ZoneID,
+                ZoneZ: BonesSpec.ZoneZ,
+                ZoneTier: BonesSpec.ZoneTier,
+                ZoneTerrainType: BonesSpec.ZoneTerrainType,
+                RegionTier: BonesSpec.RegionTier,
+                TerrainTravelClass: BonesSpec.TerrainTravelClass,
+            });
+        }
+        else {
+            catchMessage = `Failed to update BonesSpec: ${BonesID}`;
+            spec.update({
+                Level: BonesSpec.Level,
+                ZoneID: BonesSpec.ZoneID,
+                ZoneZ: BonesSpec.ZoneZ,
+                ZoneTier: BonesSpec.ZoneTier,
+                ZoneTerrainType: BonesSpec.ZoneTerrainType,
+                RegionTier: BonesSpec.RegionTier,
+                TerrainTravelClass: BonesSpec.TerrainTravelClass,
+            })
+
+            catchMessage = `Failed to save BonesSpec: ${BonesID}`;
+            await spec.save({
+                fields: ['Level', 'ZoneID', 'ZoneZ', 'ZoneTier', 'ZoneTerrainType', 'RegionTier', 'TerrainTravelClass']
+            });
+
+            catchMessage = `Failed to reload BonesSpec: ${BonesID}`;
+            await spec.reload();
+        }
+
+        if (!spec) {
+            if (bones) {
+                bones.destroy();
+            }
+            throw new Error('null BonesSpec after creation/update; Bones destroyed');
+        }
+
         res.status(201).json({
             success: req.token,
             BonesID: BonesID,
             BonesInfo: bones.SaveBonesJSON,
+            BonesSpec: spec,
             SavGz: {
                 Size: `${bones.Size/1000} KB`,
                 Data: 'to be PUT directly',
@@ -143,26 +204,88 @@ const updateBonesStats = async (req, res) => {
     var catchMessage = '';
     try {
         const {
+            Stat,
             BonesID,
-            OAID,
+            UserID,
         } = req.params
 
-        const newSaveBonesJSON = req.body;
+        if (!Stat) {
+            var output = {
+                error: `No stat provided`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        let lastEncountered;
+        const isEncountered = Stat == 'Encountered'
+        if (isEncountered) {
+            lastEncountered = BigInt(new Date() + 621355968000000000n) * 1000n;
+        }
+
+        catchMessage = `Failed to find User: ${UserID}`;
+        const user = await User.findByPk(UserID);
+
+        if (!user) {
+            var output = {
+                error: `User not found: ${UserID}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
 
         catchMessage = `Failed to find Bones: ${BonesID}`;
         const bones = await Bones.findByPk(BonesID);
 
         if (!bones) {
             var output = {
-                error: `Bones Info not found: ${bonesID}`
+                error: `Bones Info not found: ${BonesID}`
             };
             logger.warn(output);
             return res.status(204).json(output);
         }
 
+        const saveBonesJson = bones.SaveBonesJSON;
+        const storedStats = saveBonesJson.Stats
+
+        if (!Object.keys(storedStats).includes(Stat)) {
+            var output = {
+                error: `Stat is not a tracked stat: ${Stat}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        var storedStat = storedStats[Stat];
+
+        catchMessage = `Failed to increment stat ${Stat} for ${UserID}`;
+        let incremented = false;
+        for (let i = 0; i < storedStat.length; i++) {
+            if (storedStat[i].UserID == user.ID) {
+                storedStat[i].Value += 1;
+                incremented = true;
+                break;
+            }
+        }
+        catchMessage = `Failed to add stat ${Stat} for ${UserID}`;
+        if (!incremented) {
+            storedStat.push({
+                UserID: user.ID,
+                Value: 1,
+            })
+            incremented = true;
+        }
+
+        catchMessage = `Failed to update LastEncountered`;
+        if (isEncountered) {
+            storedStats['LastEncountered'] = lastEncountered;
+        }
+
+        saveBonesJson.Stats = storedStats
+
         catchMessage = `Failed to update SaveBonesJSON: ${BonesID}`;
         bones.update({
-            SaveBonesJSON: newSaveBonesJSON
+            SaveBonesJSON: saveBonesJson
         });
         catchMessage = `Failed to save SaveBonesJSON: ${BonesID}`;
         await bones.save({
@@ -189,7 +312,7 @@ const updateBonesStats = async (req, res) => {
                 Defeated,
                 Reclaimed,
                 Broken,
-            } = newSaveBonesJSON.Stats;
+            } = saveBonesJson.Stats;
 
             if (LastEncountered > 0) {
                 catchMessage = `Failed to make Date`;

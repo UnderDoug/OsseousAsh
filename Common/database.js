@@ -27,6 +27,9 @@ const sequelize = new Sequelize(
     {
         host: dbConfig.host,
         dialect: dbConfig.dialect,
+        define: {
+            freezeTableName: true
+        }
     }
 );
 
