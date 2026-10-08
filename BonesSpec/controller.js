@@ -56,7 +56,7 @@ const getAllBonesSpecs = async (req, res) => {
     }
 };
 
-const getAllBonesSpecs = async (req, res) => {
+const getMatchingBonesSpecs = async (req, res) => {
     try {
         const allBonesInfos = await BonesSpec.findAll({
             attributes: ['SaveBonesJSON'],
@@ -93,4 +93,5 @@ const getAllBonesSpecs = async (req, res) => {
 module.exports = {
     getBonesSpec,
     getAllBonesSpecs,
+    getMatchingBonesSpecs,
 };
