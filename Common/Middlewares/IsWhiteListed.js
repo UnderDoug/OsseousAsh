@@ -196,6 +196,7 @@ const performCheckID = async (ID) => {
 
             if (!user) {
                 if (anyUserDetailsRequired) {
+                    logger.warn(`User [${ID}] not found`);
                     return {
                         status: 204,
                         result: false,
@@ -206,7 +207,6 @@ const performCheckID = async (ID) => {
                         },
                     };
                 }
-                logger.warn(`User [${ID}] not found`);
             }
             else if (USER_ACTIVE_REQUIRED && user.Active != 'Active' && user.Active != 'Manage') {
                 return {
