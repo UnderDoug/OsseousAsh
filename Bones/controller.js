@@ -187,10 +187,15 @@ const addBonesSavGz = async (req, res) => {
         catchMessage = `Failed to reload Bones: ${bonesID}`;
         await bones.reload();
 
-        res.status(201).json({
+        var result = {
             BonesID: bonesID,
             SavGz: `${(Uint8Array.from(bones.SavGz).byteLength / 1000)} KB`,
-        });
+        };
+        logger.info({
+            success: true,
+            result: result,
+        })
+        res.status(201).json(result);
         clearToken(req.token);
     }
     catch (error) {

@@ -77,7 +77,7 @@ const getAllBonesInfo = async (req, res) => {
             to,
         } = req.params;
 
-        var userID = req.token.user.UserID || req.params.UserID;
+        var userID = req.token?.user?.UserID || req.params.UserID;
 
         if (!to) {
             from = 0;
