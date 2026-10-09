@@ -11,7 +11,7 @@ const getBonesInfo = async (req, res) => {
         } = req.params
 
         bonesID = BonesID
-        userID = req.token.user.UserID || UserID;
+        userID = req.token?.user?.UserID || UserID;
 
         const bones = await Bones.findByPk(BonesID);
         if (!bones) {
