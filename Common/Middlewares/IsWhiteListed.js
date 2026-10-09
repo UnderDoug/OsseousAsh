@@ -136,7 +136,7 @@ const tryGetIDFromBody = (req) => {
         if (req.body.OAID)
             return req.body.OAID;
 
-        if (req.body.OsseousAshID)
+        if (req.body.UserID)
             return req.body.UserID;
 
         return null;
@@ -191,6 +191,15 @@ const checkID = async (req, res, next) => {
 
 const performCheckID = async (ID) => {
     try {
+        if (!ID) {
+            return {
+                status: 204,
+                result: false,
+                error: {
+                    message: `User ID null`,
+                },
+            }
+        }
         try {
             var user = await User.findByPk(ID);
 
