@@ -79,7 +79,10 @@ module.exports.checkAuth = async (req, res, next) => {
 module.exports.silentAuth = async (req, res, next) => {
     try {
         processRawToken(req, res, false);
-        await this.checkAuth(req, res, next);
+        if (req.rawToken
+            && req.rawToken != 'none') {
+            await this.checkAuth(req, res, next);
+        }
     }
     catch (error) {
         logger.warn({
