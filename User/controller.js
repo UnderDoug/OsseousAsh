@@ -78,6 +78,12 @@ module.exports.updateUser = async (req, res) => {
 
         logger.info(user);
 
+        /*var log = {
+            Field: null,
+            Force: Force,
+            User: user
+        }*/
+
         var any = false;
         var fields = new Array();
         if (Handle
@@ -88,11 +94,8 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Handle: Handle || Handle.Value
             });
-            logger.info({
-                Field: 'Handle',
-                Force: Force,
-                User: user
-            });
+            /*log.Field = 'Handle';
+            logger.info(log);*/
         }
         if (Status
             || Force) {
@@ -102,11 +105,8 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Status: Status || Status.Value
             });
-            logger.info({
-                Field: 'Status',
-                Force: Force,
-                User: user
-            });
+            /*log.Field = 'Status';
+            logger.info(log);*/
         }
         if (Access
             || Force) {
@@ -116,11 +116,8 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Access: Access || Access.Value
             });
-            logger.info({
-                Field: 'Access',
-                Force: Force,
-                User: user
-            });
+            /*log.Field = 'Access';
+            logger.info(log);*/
         }
         if (Password
             || Force) {
@@ -130,11 +127,8 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Password: Password || Password.Value
             });
-            logger.info({
-                Field: 'Password',
-                Force: Force,
-                User: user
-            });
+            /*log.Field = 'Password';
+            logger.info(log);*/
         }
 
         if (any) {

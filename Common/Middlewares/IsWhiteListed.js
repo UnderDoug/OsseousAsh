@@ -97,7 +97,6 @@ const tryGetIDFromParams = (req) => {
 const tryGetIDFromSaveBonesJSON = async (req) => {
     try {
         var {
-            UserID,
             BonesID,
             SaveBonesJSON,
         } = req.body;
@@ -122,7 +121,7 @@ const tryGetIDFromSaveBonesJSON = async (req) => {
             return SaveBonesJSON.OsseousAshID;
 
         if (SaveBonesJSON?.UserID)
-            return SaveBonesJSON.OsseousAshID;
+            return SaveBonesJSON.UserID;
 
         return null;
     }
@@ -136,6 +135,12 @@ const tryGetIDFromBody = (req) => {
     try {
         if (req.body.OsseousAshID)
             return req.body.OsseousAshID;
+
+        if (req.body.OAID)
+            return req.body.OAID;
+
+        if (req.body.OsseousAshID)
+            return req.body.UserID;
 
         return null;
     }
