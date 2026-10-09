@@ -154,6 +154,7 @@ const getAllBonesInfo = async (req, res) => {
             }
             bonesJSONs[i] = bonesJSON;
         }
+        logger.info(`sending reponse`);
         res.status(200).json(bonesJSONs);
     }
     catch (error) {

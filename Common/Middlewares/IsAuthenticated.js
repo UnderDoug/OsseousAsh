@@ -7,10 +7,35 @@ const TokenGenerator = require('../token-generator');
 const jwtGen = new TokenGenerator(JWT_SECRET_KEY, JWT_SECRET_KEY, { expiresIn: '2m' });
 const jwt = require('jsonwebtoken');
 
+const processRawToken = (req, res, throwIfMissing) => {
+    if (req.rawToken
+        || req.rawToken == 'none') {
+        return;
+    }
+    const rawToken = req.header("jwt_token_header");
+    
+    if (!rawToken) {
+        if (throwIfMissing) {
+            return logger.caught(res, 401, {
+                error: 'No token provided'
+            });
+        }
+        logger.info({
+            method: 'processRawToken',
+            message: 'No token provided'
+        });
+        req.rawToken = 'none';
+    }
+    else {
+        req.rawToken = rawToken;
+    }
+}
 
 module.exports.checkAuth = async (req, res, next) => {
     try {
-        const rawToken = req.header("jwt_token_header");
+        processRawToken(req, res, true);
+
+        const rawToken = req.rawToken;
 
         if (!rawToken) {
             return logger.caught(res, 401, {
@@ -24,7 +49,10 @@ module.exports.checkAuth = async (req, res, next) => {
         req.token = token;
         res.setHeader('jwt_token_header', newToken)
 
-        logger.info({token: token, newToken: newToken});
+        logger.info({
+            token: token,
+            newToken: newToken
+        });
 
         next();
     }
@@ -45,10 +73,14 @@ module.exports.checkAuth = async (req, res, next) => {
 
 module.exports.silentAuth = async (req, res, next) => {
     try {
+        processRawToken(req, res, false);
         await this.checkAuth(req, res, next);
     }
     catch (error) {
-        logger.warn(error);
+        logger.warn({
+            silent: true,
+            error: error
+        });
     }
     next();
 };
