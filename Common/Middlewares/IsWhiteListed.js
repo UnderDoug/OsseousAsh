@@ -148,8 +148,8 @@ const tryGetIDFromBody = (req) => {
 const checkID = async (req, res, next) => {
     try {
         if (WHITELIST.ID.length > 0
-            || USER_ACTIVE_REQUIRED
-            || USER_ACCESS_REQUIRED) {
+            || anyUserDetailsRequired) {
+
             var iDCheck = {
                 result: false,
                 status: 401,

@@ -9,8 +9,8 @@ router.get('/canUp/:UserID', checkWL, async (req, res) => {
     res.status(200).json(true);
 });
 
-router.post('/User/new', UserController.createUser);
-router.post('/User/Update/:UserID', UserController.updateUser);
+router.post('/User/new', checkWL, UserController.createUser);
+router.post('/User/Update/:UserID', checkAuth, UserController.updateUser);
 
 router.post('/User/Login', UserController.postLogin);
 
