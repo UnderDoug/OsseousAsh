@@ -101,9 +101,6 @@ const tryGetIDFromSaveBonesJSON = async (req) => {
             SaveBonesJSON,
         } = req.body;
 
-        if (UserID)
-            return UserID;
-
         if (req.token) {
             const tokenRecord = tokenRecords[req.token];
             if (tokenRecord) {
