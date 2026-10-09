@@ -10,6 +10,9 @@ const jwt = require('jsonwebtoken');
 const processRawToken = (req, res, throwIfMissing) => {
     if (req.rawToken
         || req.rawToken == 'none') {
+        logger.info({
+            message: `processRawToken called with already processed token: ${req.rawToken}`;
+        });
         return;
     }
     const rawToken = req.header("jwt_token_header");
@@ -21,8 +24,7 @@ const processRawToken = (req, res, throwIfMissing) => {
             });
         }
         logger.info({
-            method: 'processRawToken',
-            message: 'No token provided'
+            message: 'No token provided to processRawToken'
         });
         req.rawToken = 'none';
     }
