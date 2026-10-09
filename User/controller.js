@@ -48,7 +48,6 @@ module.exports.createUser = async (req, res) => {
 
 module.exports.updateUser = async (req, res) => {
     try {
-
         const ID = req.params.UserID;
 
         //console.log(req);
@@ -77,6 +76,8 @@ module.exports.updateUser = async (req, res) => {
             return res.status(204).json(output);
         }
 
+        logger.info(user);
+
         var any = false;
         var fields = new Array();
         if (Handle
@@ -87,6 +88,11 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Handle: Handle || Handle.Value
             });
+            logger.info({
+                Field: 'Handle',
+                Force: Force,
+                User: user
+            });
         }
         if (Status
             || Force) {
@@ -95,6 +101,11 @@ module.exports.updateUser = async (req, res) => {
             any = true;
             user.update({
                 Status: Status || Status.Value
+            });
+            logger.info({
+                Field: 'Status',
+                Force: Force,
+                User: user
             });
         }
         if (Access
@@ -105,6 +116,11 @@ module.exports.updateUser = async (req, res) => {
             user.update({
                 Access: Access || Access.Value
             });
+            logger.info({
+                Field: 'Access',
+                Force: Force,
+                User: user
+            });
         }
         if (Password
             || Force) {
@@ -113,6 +129,11 @@ module.exports.updateUser = async (req, res) => {
             any = true;
             user.update({
                 Password: Password || Password.Value
+            });
+            logger.info({
+                Field: 'Password',
+                Force: Force,
+                User: user
             });
         }
 
@@ -128,11 +149,11 @@ module.exports.updateUser = async (req, res) => {
             return res.status(201).json(user);
         }
 
-        throw new Error('No values to update User with.')
+        throw new Error('No values with which to update User.')
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error updating User`,
+            message: `Error updating User - ${catchMessage}`,
             error: error.message
         });
     }
