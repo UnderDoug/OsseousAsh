@@ -11,7 +11,7 @@ const processRawToken = (req, res, throwIfMissing) => {
     if (req.rawToken
         || req.rawToken == 'none') {
         logger.info({
-            message: `processRawToken called with already processed token: ${req.rawToken}`;
+            message: `processRawToken called with already processed token: ${req.rawToken}`
         });
         return;
     }
