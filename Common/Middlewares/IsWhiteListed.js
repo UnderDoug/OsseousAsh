@@ -217,11 +217,11 @@ const performCheckID = async (ID) => {
                     };
                 }
             }
-            else if (USER_ACTIVE_REQUIRED && user.Active != 'Active' && user.Active != 'Manage') {
+            else if (USER_ACTIVE_REQUIRED && user.Status != 'Active') {
                 return {
                     status: 403,
                     result: false,
-                    error: `User [${ID}] is not active and USER_ACTIVE_REQUIRED`,
+                    error: `User [${ID}] is not Active and USER_ACTIVE_REQUIRED`,
                 };
             }
             else if (USER_ACCESS_REQUIRED && user.Access == 'None') {
