@@ -66,7 +66,7 @@ module.exports.updateUser = async (req, res) => {
         const Password = req.body.Password;
         const Force = req.body.Force;*/
 
-        const user = await User.findByPk(ID);
+        const user = await User.unscoped().findByPk(ID);
 
         if (!user) {
             var output = {
