@@ -6,7 +6,7 @@ const { logger } = require('./Common/logger');
 const express = require('express');
 const main = express();
 
-main.use(express.json({ limit: '8kb' }));
+main.use(express.json({ limit: '64kb' }));
 main.use(express.raw({ extended: true, limit: '4mb' }));
 main.use(express.urlencoded({ extended: true, limit: '4mb' }));
 

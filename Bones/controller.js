@@ -44,7 +44,7 @@ const createBones = async (req, res) => {
 
         try {
             catchMessage = `Failed while checking existing Bones: ${BonesID}`;
-            bones = await Bones.findOne({
+            bones = await Bones.unscoped().findOne({
                 where: {
                     ID: BonesID,
                 },
