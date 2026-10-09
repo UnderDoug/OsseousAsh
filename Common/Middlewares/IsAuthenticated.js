@@ -42,6 +42,9 @@ module.exports.checkAuth = async (req, res, next) => {
                 error: 'No token provided'
             });
         }
+        else if (rawToken == 'none') {
+            return;
+        }
 
         const token = jwt.verify(rawToken, JWT_SECRET_KEY);
         const newToken = jwtGen.refresh(rawToken); // , { verify: {} });
