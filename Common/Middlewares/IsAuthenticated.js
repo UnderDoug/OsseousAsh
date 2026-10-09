@@ -10,9 +10,6 @@ const jwt = require('jsonwebtoken');
 const processRawToken = (req, res, throwIfMissing) => {
     if (req.rawToken
         || req.rawToken == 'none') {
-        logger.info({
-            message: `processRawToken called with already processed token: ${req.rawToken}`
-        });
         return;
     }
     const rawToken = req.header("jwt_token_header");
@@ -45,6 +42,9 @@ module.exports.checkAuth = async (req, res, next) => {
             });
         }
         else if (rawToken == 'none') {
+            logger.info({
+                message: `checkAuth called with silent token`
+            });
             return;
         }
 
@@ -79,8 +79,8 @@ module.exports.checkAuth = async (req, res, next) => {
 module.exports.silentAuth = async (req, res, next) => {
     try {
         processRawToken(req, res, false);
-        if (req.rawToken
-            && req.rawToken != 'none') {
+        if (!req.rawToken
+            || req.rawToken != 'none') {
             await this.checkAuth(req, res, next);
         }
     }
