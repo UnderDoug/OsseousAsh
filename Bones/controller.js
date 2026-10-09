@@ -62,6 +62,7 @@ const createBones = async (req, res) => {
             bones = await Bones.create({
                 ID: BonesID,
                 SaveBonesJSON: SaveBonesJSON,
+                BonesSpec: BonesSpec,
             });
         }
         else {
@@ -70,12 +71,13 @@ const createBones = async (req, res) => {
             bones.update({
                 ID: BonesID,
                 SaveBonesJSON: SaveBonesJSON,
+                BonesSpec: BonesSpec,
                 SavGz: null,
             });
 
             catchMessage = `Failed to save Bones: ${BonesID}`;
             await bones.save({
-                fields: ['BonesID', 'SaveBonesJSON', 'SavGz']
+                fields: ['BonesID', 'SaveBonesJSON', 'BonesSpec', 'SavGz']
             });
 
             catchMessage = `Failed to reload Bones: ${BonesID}`;
@@ -85,7 +87,7 @@ const createBones = async (req, res) => {
         if (!bones) {
             throw new Error('null Bones after creation/update');
         }
-
+/*
         try {
             catchMessage = `Failed while checking existing BonesSpecs: ${BonesID}`;
             spec = await Spec.findOne({
@@ -140,7 +142,7 @@ const createBones = async (req, res) => {
                 bones.destroy();
             }
             throw new Error('null BonesSpec after creation/update; Bones destroyed');
-        }
+        }*/
 
         res.status(201).json({
             success: req.token,
