@@ -14,7 +14,16 @@ const checkIP = async (req, res, next) => {
     try {
         const reqIP = req.socket.remoteAddress;
 
-        const iPCheck = performCheckIP(reqIP);
+        var iP = null;
+        for (let i = 0; i < reqIP.length; i++) {
+            let c = reqIP.substring(i, i+1);
+            if (c != '.'
+                && !parseInt(c)) {
+                continue;
+            }
+            iP = iP + c;
+        }
+        const iPCheck = performCheckIP(iP);
 
         if (iPCheck.result) {
             if (iPCheck.status == 200) {
@@ -39,11 +48,11 @@ const checkIP = async (req, res, next) => {
 const performCheckIP = (IP) => {
     try {
         if (WHITELIST.IP.length > 0) {
-            var iPPassed = false;
-            for (let i = 0; i < WHITELIST.IP.length; i++) {
+            var iPPassed = Object.values(WHITELIST.IP).includes(IP);
+            /*for (let i = 0; i < WHITELIST.IP.length; i++) {
                 if (WHITELIST.IP[i] == IP)
                     iPPassed = true;
-            }
+            }*/
             if (!iPPassed) {
                 var errorMsg = `IP [${IP}] not in whitelist`;
                 logger.warn(errorMsg);
@@ -80,7 +89,7 @@ const tryGetIDFromParams = (req) => {
         return null;
     }
     catch (error) {
-        logger.warn(`tryGetOAIDFromParams failed: ${error.message}`);
+        logger.warn(`tryGetIDFromParams failed: ${error.message}`);
         return null;
     }
 }
@@ -88,9 +97,13 @@ const tryGetIDFromParams = (req) => {
 const tryGetIDFromSaveBonesJSON = async (req) => {
     try {
         var {
+            UserID,
             BonesID,
-            SaveBonesJSON
+            SaveBonesJSON,
         } = req.body;
+
+        if (UserID)
+            return UserID;
 
         if (req.token) {
             const tokenRecord = tokenRecords[req.token];
@@ -108,10 +121,13 @@ const tryGetIDFromSaveBonesJSON = async (req) => {
         if (SaveBonesJSON?.OsseousAshID)
             return SaveBonesJSON.OsseousAshID;
 
+        if (SaveBonesJSON?.UserID)
+            return SaveBonesJSON.OsseousAshID;
+
         return null;
     }
     catch (error) {
-        logger.warn(`tryGetOAIDFromSaveBonesJSON failed: ${error.message}`);
+        logger.warn(`tryGetIDFromSaveBonesJSON failed: ${error.message}`);
         return null;
     }
 }
@@ -190,7 +206,7 @@ const performCheckID = async (ID) => {
                 }
                 logger.warn(`User [${ID}] not found`);
             }
-            else if (USER_ACTIVE_REQUIRED && user.Active != 'Active') {
+            else if (USER_ACTIVE_REQUIRED && user.Active != 'Active' && user.Active != 'Manage') {
                 return {
                     status: 403,
                     result: false,
@@ -219,10 +235,12 @@ const performCheckID = async (ID) => {
         if (WHITELIST.ID.length > 0) {
             var iDPassed = false;
             if (ID) {
-                for (let i = 0; i < WHITELIST.ID.length; i++) {
-                    if (WHITELIST.OsseousAshID[i] == ID)
+                if (Object.values(WHITELIST.ID).includes(ID));
+                    iDPassed = true;
+                /*for (let i = 0; i < WHITELIST.ID.length; i++) {
+                    if (WHITELIST.ID[i] == ID)
                         iDPassed = true;
-                }
+                }*/
             }
             if (!iDPassed) {
                 var errorMsg = `ID [${ID}] not in whitelist`;
