@@ -173,7 +173,7 @@ const addBonesSavGz = async (req, res) => {
         bonesID = tokenRecords[req.token].BonesID;
 
         catchMessage = `Failed to find Bones: ${bonesID}`;
-        var bones = await Bones.findByPk(bonesID);
+        var bones = await Bones.unscoped().findByPk(bonesID);
 
         catchMessage = `Failed to update Bones SavGz: ${bonesID}`;
         bones.update({
