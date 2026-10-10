@@ -121,6 +121,57 @@ const updateReport = async (req, res) => {
     }
 };
 
+const updateBlocked = async (req, res) => {
+    var catchMessage = '';
+    try {
+        const ReportID = req.params.ReportID
+
+        catchMessage = `Failed to find Report: ${ReportID}`;
+        const report = await Report.findByPk(ReportID);
+
+        if (!report) {
+            var output = {
+                error: `Report not found: ${ReportID}`
+            };
+            logger.warn(output);
+            return res.status(204).json(output);
+        }
+
+        catchMessage = `Failed to update Blocked: ${ReportID}`;
+        report.update({
+            Blocked: !report.Blocked
+        });
+        catchMessage = `Failed to save Blocked: ${ReportID}`;
+        await bones.save({
+            fields: ['Blocked']
+        });
+
+        catchMessage = `Failed to reload Report: ${ReportID}`;
+        await bones.reload();
+
+        catchMessage = `Failed to report susccess: ${ReportID}`;
+        
+        var output = {
+            User: `${req.token.user.UserID}`,
+            Stats: report,
+        };
+        if (caughtEx) {
+            output.info = caughtEx;
+        }
+
+        logger.info(output);
+        res.status(200).json(output);
+    }
+    catch (error) {
+        var output = {
+            message: catchMessage,
+            error: error.message
+        };
+        logger.error(output);
+        res.status(500).json(output);
+    }
+};
+
 const getHasReported = async (req, res) => {
     let userID;
     let bonesID;
@@ -152,6 +203,32 @@ const getHasReported = async (req, res) => {
         return res.status(200).json({
             reports: reports.length,
             blocked: anyBlocked,
+        });
+    }
+    catch (error) {
+        logger.caught(res, 500, {
+            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
+            error: error.message
+        });
+    }
+};
+
+const getBlocked = async (req, res) => {
+    let userID;
+    let bonesID;
+    try {
+        userID = req.params.UserID
+        bonesID = req.params.BonesID
+        const reports = await Report.findAll({
+            where: {
+                UserID: userID,
+                BonesID: bonesID,
+                Blocked: true,
+            },
+        });
+
+        return res.status(200).json({
+            blocked: (reports?.length || 0) != 0,
         });
     }
     catch (error) {
@@ -399,7 +476,9 @@ const deleteAllReports = async (req, res) => {
 module.exports = {
     createReport,
     updateReport,
+    updateBlocked,
     getHasReported,
+    getBlocked,
     getReport,
     getReports,
     getAllReports,

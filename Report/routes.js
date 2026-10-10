@@ -10,14 +10,16 @@ router.post('/Report/new', check, ReportController.createReport);
 
 // update report
 router.put('/Report/:ReportID', checkAuth, ReportController.updateReport);
+router.put('/Report/Blocked/:BonesID/:UserID', ReportController.updateBlocked);
 
 // check report exists from UserID
 router.get('/Report/Check/:BonesID/:UserID', ReportController.getHasReported);
+router.get('/Report/Blocked/:BonesID/:UserID', ReportController.getBlocked);
 router.get('/Report/:ReportID', ReportController.getReport);
 
 // list report(s)
-router.post('/Reports/:BonesID/:UserID', checkAuth, ReportController.getReports);
-router.post('/Reports/User/:UserID', checkAuth, ReportController.getAllReports);
+router.post('/Reports/:BonesID/:UserID', ReportController.getReports);
+router.post('/Reports/User/:UserID', ReportController.getAllReports);
 router.post('/Reports/Bones/:BonesID', checkAuth, ReportController.getAllReports);
 router.post('/Reports', checkAuth, ReportController.getAllReports);
 
