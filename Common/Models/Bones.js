@@ -2,6 +2,8 @@ const { DataTypes, Model, Sequelize, Op } = require('sequelize');
 const sequelize = require('./../database');
 const { DB_DIALECT } = process.env;
 
+const isPostgres = DB_DIALECT == 'postgres';
+
 module.exports.Bones = class Bones extends Model {
     static {
         Bones.init(
@@ -14,7 +16,7 @@ module.exports.Bones = class Bones extends Model {
                     unique: true,
                 },
                 SaveBonesJSON: {
-                    type: DataTypes.JSON,
+                    type: isPostgres ? DataTypes.JSONB : DataTypes.JSON,
                     allowNull: false,
                     autoIncrement: false,
                 },
@@ -29,7 +31,7 @@ module.exports.Bones = class Bones extends Model {
                     }
                 },
                 SavGz: {
-                    type: DB_DIALECT == 'postgres' ? DataTypes.BLOB : DataTypes.BLOB('medium'),
+                    type: isPostgres ? DataTypes.BLOB : DataTypes.BLOB('medium'),
                     allowNull: true,
                     autoIncrement: false,
                 },
@@ -56,6 +58,7 @@ module.exports.Bones = class Bones extends Model {
                     },
                 },
                 sequelize: sequelize,
+                freezeTableName: true,
                 modelName: 'Bones',
                 /*timestamps: true,
                 createdAt: false,*/

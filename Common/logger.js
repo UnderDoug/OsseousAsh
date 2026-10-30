@@ -23,10 +23,14 @@ if (process.env.NODE_ENV !== 'production') {
 
 this.logger.caught = (res, status, output, resBody) => {
     if (status != 500) {
-        this.logger.warn(output);
+        this.logger.warn(output.error);
+        if (output.stack)
+            this.logger.warn(output.stack);
     }
     else {
-        this.logger.error(output);
+        this.logger.error(output.error);
+        if (output.stack)
+            this.logger.error(output.stack);
     }
     return res.status(status).json(resBody || output);
-};
+}

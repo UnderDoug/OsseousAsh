@@ -19,7 +19,7 @@ module.exports.User = class User extends Model {
                     allowNull: false,
                 },
                 Status: {
-                    type: DataTypes.ENUM('None', 'Pending', 'Active', 'Disabled'),
+                    type: DataTypes.ENUM('None', 'Disabled', 'Pending', 'Active'),
                     allowNull: false,
                 },
                 Access: {
@@ -54,13 +54,22 @@ module.exports.User = class User extends Model {
                     allowNull: false,
                     defaultValue: false,
                 },
+                SessionID: {
+                    type: DataTypes.UUID,
+                    autoIncrement: false,
+                    allowNull: true,
+                },
             },
             {
                 defaultScope: {
-                    attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
+                    attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty', 'SessionID'] },
                 },
                 scopes: {
                     includePassword: {
+                        attributes: { exclude: ['SessionID'] },
+                    },
+                    session: {
+                        attributes: ['SessionID'],
                     },
                     pending: {
                         attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
@@ -79,6 +88,15 @@ module.exports.User = class User extends Model {
                         where: {
                             Status: 'Active',
                             Access: 'Manage',
+                        },
+                    },
+                    canUp: {
+                        attributes: ['Status', 'Access'],
+                        where: {
+                            Status: 'Active',
+                            Access: {
+                                [Op.or]: ['Up', 'Manage']
+                            },
                         },
                     },
                     forBones: {
@@ -121,4 +139,37 @@ module.exports.User = class User extends Model {
     passwordValue() {
         return this.getDataValue('Password');
     }
+
+    checkPassword = async (password) => {
+        const userPassword = this.passwordValue();
+        const matchingNoPassword = !password && !this.passwordValue();
+
+        if (!password
+            && !matchingNoPassword) {
+            return null;
+        }
+
+        var isValidPassword = matchingNoPassword;
+        if (!isValidPassword) {
+            isValidPassword = await bcrypt.compare(password, userPassword);
+        }
+
+        return isValidPassword;
+    }
+
+    // 'None', 'Disabled', 'Pending', 'Active'
+    static statusTypes = Object.freeze({
+        None: 0,
+        Disabled: 1,
+        Pending: 2,
+        Active: 3,
+    });
+
+    // 'None', 'Down', 'Up', 'Manage'
+    static accessLevels = Object.freeze({
+        None: 0,
+        Down: 1,
+        Up: 2,
+        Manage: 3,
+    });
 }

@@ -62,7 +62,8 @@ module.exports.Report = class Report extends Model {
                     },
                 },
                 sequelize: sequelize,
-                modelName: 'Report'
+                freezeTableName: true,
+                modelName: 'Report',
             }
         );
     };

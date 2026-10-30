@@ -1,13 +1,11 @@
 const sequelize = require('./database');
 
-const { User } = require('./Models/User');
-const { Bones } = require('./Models/Bones');
-const { Report } = require('./Models/Report');
-const { BonesSpec } = require('./Models/BonesSpec');
-
 module.exports = {
-    User: User,
-    Bones: Bones,
-    Report: Report,
-    BonesSpec: BonesSpec,
+    User: require('./Models/User').User,
+    Bones: require('./Models/Bones').Bones,
+    Report: require('./Models/Report') .Report,
+    BonesSpec: require('./Models/BonesSpec').BonesSpec,
+    BonesStats: require('./Models/BonesStats').BonesStats,
+    ModRecord: require('./Models/ModRecord').ModRecord,
+    ModConfig: require('./Models/ModConfig').ModConfig,
 };

@@ -1,14 +1,32 @@
 if (!process.env.NODE_ENV) {
     require('dotenv').config();
 }
-const { JWT_SECRET_KEY } = process.env;
-const { logger } = require('../Common/logger');
+const {
+    JWT_SECRET_KEY,
+    USER_DEFAULT_STATUS,
+    USER_DEFAULT_ACCESS,
+    JWT_SESSION_EXP,
+} = process.env;
 
+const { logger } = require('../Common/logger');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { User } = require('../Common/Models/User');
 const { v4: newGuid } = require('uuid');
+
+module.exports.getCanUp = async (req, res) => {
+    try {
+        res.status(200).json(req.params.UserID != null
+            && await User.scope('canUp').findByPk(req.params.UserID) != null);
+    }
+    catch (error) {
+        logger.caught(res, 500, {
+            message: `Error checking user upload eligibility`,
+            error: error.message
+        });
+    }
+};
 
 module.exports.createUser = async (req, res) => {
     try {
@@ -18,25 +36,38 @@ module.exports.createUser = async (req, res) => {
             Status,
             Access,
             Password,
-        } = req.body;
+        } = req.body.User;
 
         if (!ID) {
             throw new Error(`Failed to create User: No ID`);
         }
 
-        const user = await User.create({
-            ID: ID,
-            Handle: Handle,
-            Status: Status,
-            Access: Access,
-            Password: Password,
+        var status = USER_DEFAULT_STATUS;
+        var access = USER_DEFAULT_ACCESS;
+        if (req.user?.canManage) {
+            status = Status || USER_DEFAULT_STATUS;
+            access = Access || USER_DEFAULT_ACCESS;
+        }
+
+        const [user, created] = await User.unscoped().findOrCreate({
+            where: {
+                ID: ID
+            },
+            defaults: {
+                ID: ID,
+                Handle: Handle,
+                Status: status,
+                Access: access,
+                Password: Password
+            },
         });
 
         if (!user) {
             throw new Error(`Failed to create User: ${ID}`);
         }
 
-        res.status(201).json(user);
+        // logger.info(`new user created:\n{${user.ID}}: ${user.Handle}\n${User.Status}, ${User.Access}`);
+        res.status(created ? 201 : 200).json(user);
     }
     catch (error) {
         logger.caught(res, 500, {
@@ -58,18 +89,13 @@ module.exports.updateUser = async (req, res) => {
             Access,
             Password,
             Force,
-        } = req.body;
-
-        /*const Handle = req.body.Handle;
-        const Status = req.body.Status;
-        const Access = req.body.Access;
-        const Password = req.body.Password;
-        const Force = req.body.Force;*/
+        } = req.body.User;
 
         const user = await User.unscoped().findByPk(ID);
 
         if (!user) {
             var output = {
+                method: 'updateUser',
                 error: `User not found: ${ID}`
             };
             logger.warn({ output });
@@ -153,16 +179,118 @@ module.exports.updateUser = async (req, res) => {
     }
 };
 
-module.exports.getUser = async (req, res) => {
-    let userID;
+module.exports.updateUserHandle = async (req, res) => {
     try {
-        userID = req.params.UserID
-        const user = await User.scope('includePassword').findByPk(userID);
+        const ID = req.params.UserID;
+
+        const {
+            Handle,
+        } = req.body.User;
+
+        const user = await User.unscoped().findByPk(ID);
+
         if (!user) {
             var output = {
-                error: `User not found: ${userID}`
+                method: 'updateUserHandle',
+                error: `User not found: ${ID}`
             };
-            logger.warn(output);
+            logger.warn({ output });
+            return res.status(204).json(output);
+        }
+
+        const originalHandle = user.Handle;
+
+        catchMessage = `Failed to update Handle: ${Handle}`;
+        any = true;
+        user.update({
+            Handle: Handle
+        });
+
+        catchMessage = `Failed to save User: ${ID}`;
+        await user.save({
+            fields: ['Handle'],
+        });
+
+        catchMessage = `Failed to reload User: ${ID}`;
+        await user.reload();
+
+        logger.info({
+            Message: `Updated user handle "${originalHandle}" -> "${user.Handle}"`,
+        });
+
+        return res.status(200).json(user);
+    }
+    catch (error) {
+        logger.caught(res, 500, {
+            message: `Error updating User - ${catchMessage}`,
+            error: error.message
+        });
+    }
+};
+
+module.exports.updateUserPassword = async (req, res) => {
+    try {
+        const ID = req.params.UserID;
+
+        const {
+            Password,
+        } = req.body.User;
+
+        const user = await User.unscoped().findByPk(ID);
+
+        if (!user) {
+            var output = {
+                method: 'updateUserPassword',
+                error: `User not found: ${ID}`
+            };
+            logger.warn({ output });
+            return res.status(204).json(output);
+        }
+
+        const originalPassword = user.Password;
+
+        var password = Password ? '********' : 'null';
+
+        catchMessage = `Failed to update Password: ${password}`;
+        any = true;
+        user.update({
+            Password: Password
+        });
+
+        catchMessage = `Failed to save User: ${ID}`;
+        await user.save({
+            fields: ['Password'],
+        });
+
+        catchMessage = `Failed to reload User: ${ID}`;
+        await user.reload();
+
+        logger.info({
+            Message: `Updated user password "${originalPassword}" -> "${user.Password}"`,
+        });
+
+        return res.status(200).json(user);
+    }
+    catch (error) {
+        logger.caught(res, 500, {
+            message: `Error updating User - ${catchMessage}`,
+            error: error.message
+        });
+    }
+};
+
+module.exports.getUser = async (req, res) => {
+    const {
+        UserID
+    } = req.params;
+    try {
+        const user = await User.scope('includePassword').findByPk(UserID);
+        if (!user) {
+            var output = {
+                method: 'getUser',
+                error: `User not found: ${UserID}`
+            };
+            logger.warn(`${output.method}; ${output.error}`);
             return res.status(204).json(output);
         }
 
@@ -170,7 +298,7 @@ module.exports.getUser = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving User: ${userID}`,
+            message: `Error retrieving User: ${UserID}`,
             error: error.message
         });
     }
@@ -258,9 +386,23 @@ module.exports.getUserHandle = async (req, res) => {
     }
 };
 
-module.exports.postLogin = async (req, res) => {
+module.exports.getSession = async (req, res) => {
     try {
-        const { UserID, Password } = req.body;
+        const authHeader = req.headers['authorization'];
+        if (!authHeader) {
+            return logger.caught(res, 401, {
+                error: `No authorization header provided`,
+            });
+        }
+
+        const [type, Password] = authHeader.split(' ');
+        if (type != 'basic') {
+            return logger.caught(res, 401, {
+                error: `Incorrect authorization format`,
+            });
+        }
+
+        const { UserID } = req.params;
         if (!UserID) {
             return logger.caught(res, 400, {
                 error: 'Missing UserID',
@@ -275,33 +417,40 @@ module.exports.postLogin = async (req, res) => {
             });
         }
 
-        const userPassword = user.passwordValue();
-        const matchingNoPassword = !Password && !userPassword;
+        const passwordCheck = await user?.checkPassword(Password);
 
-        if (!Password && !matchingNoPassword) {
+        if (passwordCheck == null) {
             return logger.caught(res, 400, {
                 error: 'Missing Password',
             });
         }
 
-        var isValidPassword = matchingNoPassword;
-        if (!isValidPassword) {
-            isValidPassword = await bcrypt.compare(Password, userPassword);
-        }
-
-        if (!isValidPassword) {
+        if (!passwordCheck) {
             return logger.caught(res, 401, {
                 error: 'Invalid credentials',
             });
         }
 
+        var newSession = crypto.randomUUID();
+
+        user.update({
+            SessionID: newSession
+        });
+
+        await user.save({
+            fields: ['SessionID'],
+        });
+
+        await user.reload();
+
         const payload = {
-            UserID: UserID,
+            User: UserID,
+            SessionID: newSession,
         }
 
         const host = req.get('host');
         const params = {
-            expiresIn: '2m',
+            expiresIn: JWT_SESSION_EXP,
             issuer: host,
             audience: host,
         };
@@ -324,4 +473,139 @@ module.exports.postLogin = async (req, res) => {
             error: error.message
         });
     }
+};
+
+module.exports.getAllReports = async (req, res) => {
+    try {
+        const {
+            UserID,
+            BonesID
+        } = req.params;
+
+        var condition = {};
+
+        if (UserID) {
+            condition.UserID = UserID;
+        }
+        if (BonesID) {
+            condition.BonesID = BonesID;
+        }
+
+        var reportsRaw = null;
+        if (UserID
+            || BonesID) {
+            reportsRaw = await Report.findAll({
+                where: condition,
+                order: [
+                    ['createdAt', 'DESC']
+                ],
+            });
+        }
+        else {
+            reportsRaw = await Report.findAll({
+                order: [
+                    ['createdAt', 'DESC']
+                ],
+            });
+        }
+        const reports = reportsRaw;
+
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
+                message: 'No Reports, but no errors'
+            });
+            return;
+        }
+
+        res.status(200).json(reports);
+    }
+    catch (error) {
+        var output = {
+            message: 'Error retrieving All Reports',
+            error: error.message
+        };
+        logger.error(output);
+        res.status(500).json(output);
+    }
+};
+
+module.exports.deleteAllReports = async (req, res) => {
+    var deleteCount = 0;
+    var errors = {};
+    var errorCount = 0;
+    try {
+        const {
+            UserID,
+            BonesID
+        } = req.params;
+
+        var condition = {};
+
+        if (UserID) {
+            condition.UserID = UserID;
+        }
+        if (BonesID) {
+            condition.BonesID = BonesID;
+        }
+
+        var reportsRaw = null;
+        if (UserID
+            || BonesID) {
+            reportsRaw = await Report.findAll({
+                where: condition,
+            });
+        }
+        else {
+            reportsRaw = await Report.findAll();
+        }
+        const reports = reportsRaw;
+
+        if ((reports?.length || 0) == 0) {
+            res.status(204).json({
+                message: 'No Reports, but no errors'
+            });
+            return;
+        }
+
+        for (let i = 0; i < reports.length; i++) {
+            let report = reports[i];
+            try {
+                await Report.destroy({
+                    where: {
+                        ID: report.ID
+                    }
+                });
+            }
+            catch (error) {
+                let errorIndex = errorCount++;
+                errors[errorIndex].reportID = report.ID;
+                errors[errorIndex].error = error.message;
+            }
+        }
+    }
+    catch (error) {
+        var output = {
+            message: 'Error deleting All Reports',
+            error: error.message,
+            reportErrors: errors,
+        }
+        logger.error(output);
+        res.status(500).json(output);
+    }
+
+    var message = `Deleted all Reports`;
+
+    if (BonesID) {
+        message += `, BonesID: ${BonesID}`;
+    }
+    if (UserID) {
+        message += `, UserID: ${UserID}`;
+    }
+    var output = {
+        deleted: deleteCount,
+        message: message,
+        reportErrors: errors,
+    };
+    logger.info(output);
+    res.status(200).json(output);
 };

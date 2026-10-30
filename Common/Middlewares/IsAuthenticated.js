@@ -1,57 +1,130 @@
 if (!process.env.NODE_ENV) {
     require('dotenv').config();
 }
+const {
+    JWT_SECRET_KEY,
+    JWT_SESSION_EXP,
+} = process.env;
+
 const { logger } = require('../logger');
-const { JWT_SECRET_KEY, USER_AUTH_REQUIRED } = process.env;
 const TokenGenerator = require('../token-generator');
-const jwtGen = new TokenGenerator(JWT_SECRET_KEY, JWT_SECRET_KEY, { expiresIn: '2m' });
+const jwtGen = new TokenGenerator(JWT_SECRET_KEY, JWT_SECRET_KEY, { expiresIn: JWT_SESSION_EXP });
 const jwt = require('jsonwebtoken');
 
-const processRawToken = (req, res, throwIfMissing) => {
-    if (req.rawToken
-        || req.rawToken == 'none') {
-        return;
-    }
-    const rawToken = req.header("jwt_token_header");
-    
-    if (!rawToken) {
-        if (throwIfMissing) {
-            return logger.caught(res, 401, {
-                error: 'No token provided'
-            });
+const { User } = require('../Models/User');
+const { statusTypes, accessLevels } = User
+
+const processError = (error) => {
+    var err = error;
+    err.status = 500;
+    switch (error.name) {
+        case 'TokenExpiredError': {
+            err.status = 401;
+            err.message = 'Auth token expired';
+            break;
         }
-        logger.info({
-            message: 'No token provided to processRawToken'
-        });
-        req.rawToken = 'none';
+        case 'JsonWebTokenError': {
+            err.status = 403;
+            err.message = 'Invalid auth token';
+            break;
+        }
+        case 'InvalidUserStatus':
+        case 'InsufficientAccess':
+        case 'InvalidSession': {
+            err.status = 403;
+            break;
+        }
+        case 'NullSessionID':
+        case 'MissingToken':
+        case 'NullUserID':
+        case 'MissingUser': {
+            err.status = 400;
+            break;
+        }
+        default:
+            break;
     }
-    else {
-        req.rawToken = rawToken;
+    return err;
+}
+
+const checkAccessLevel = (user, level, unless) => {
+    if (!user) {
+        let err = new Error(`User was null`);
+        err.name = 'MissingUser';
+        throw err;
     }
+    if (accessLevels[user.Access] < accessLevels[level]) {
+        if (!unless) {
+            let err = new Error(`Insufficient user access`);
+            err.name = 'InsufficientAccess';
+            throw err;
+        }
+    }
+    return true;
+}
+
+const checkStatusType = (user, type, unless) => {
+    if (!user) {
+        let err = new Error(`User was null`);
+        err.name = 'MissingUser';
+        throw err;
+    }
+    if (statusTypes[user.Status] < statusTypes[type]) {
+        if (!unless) {
+            let err = new Error(`Invalid user status: ${user.Status}`);
+            err.name = 'InvalidUserStatus';
+            throw err;
+        }
+    }
+    return true;
 }
 
 module.exports.checkAuth = async (req, res, next) => {
     try {
-        processRawToken(req, res, true);
+        if (req.session?.user) {
+            req.user = {
+                ID: req.session.user,
+                Status: 'Active',
+                Access: 'Manage',
+            }
+            return next();
+        }
 
-        const rawToken = req.rawToken;
+        const rawToken = req.header("jwt_token_header");
 
         if (!rawToken) {
-            return logger.caught(res, 401, {
-                error: 'No token provided'
-            });
-        }
-        else if (rawToken == 'none') {
-            logger.info({
-                message: `checkAuth called with silent token`
-            });
-            return;
+            let err = new Error(`No token provided`);
+            err.name = 'MissingToken';
+            throw err;
         }
 
         const token = jwt.verify(rawToken, JWT_SECRET_KEY);
-        const newToken = jwtGen.refresh(rawToken); // , { verify: {} });
+
+        if (!token.User) {
+            let err = new Error(`token.User is null`);
+            err.name = 'NullUserID';
+            throw err;
+        }
+
+        const user = await User.unscoped().findByPk(token.User);
+
+        if (!user) {
+            let err = new Error(`User was null`);
+            err.name = 'MissingUser';
+            throw err;
+        }
+
+        checkStatusType(user, 'Active');
+
+        const newToken = await jwtGen.refresh(token, user); // , { verify: {} });
 
         req.token = token;
+        req.user = {
+            ID: user.ID,
+            Status: user.Status,
+            Access: user.Access,
+            canManage: this.canManage(user),
+        };
         res.setHeader('jwt_token_header', newToken)
 
         logger.info({
@@ -62,42 +135,64 @@ module.exports.checkAuth = async (req, res, next) => {
         next();
     }
     catch (error) {
-        var err = error;
-        err.status = 500;
-        if (error.name === 'TokenExpiredError') {
-            err.status = 401;
-            err.message = 'Auth token expired'
-        }
-        else if (error.name === 'JsonWebTokenError') {
-            err.status = 403;
-            err.message = 'Invalid auth token'
-        }
+        var err = processError(error);
         next(err);
     }
-};
+}
 
-module.exports.silentAuth = async (req, res, next) => {
+module.exports.checkCanDownload = async (req, res, next) => {
     try {
-        processRawToken(req, res, false);
-        if (!req.rawToken
-            || req.rawToken != 'none') {
-            await this.checkAuth(req, res, next);
-        }
-    }
-    catch (error) {
-        logger.warn({
-            silent: true,
-            error: error
-        });
-    }
-    next();
-};
-
-module.exports.maybeCheckAuth = async (req, res, next) => {
-    if (USER_AUTH_REQUIRED) {
-        return await this.checkAuth(req, res, next);
-    }
-    else {
+        checkAccessLevel(req.user, 'Down');
         next();
     }
-};
+    catch (error) {
+        var err = processError(error);
+        next(err);
+    }
+}
+
+module.exports.checkCanUpload = async (req, res, next) => {
+    try {
+        checkAccessLevel(req.user, 'Up');
+        next();
+    }
+    catch (error) {
+        var err = processError(error);
+        next(err);
+    }
+}
+
+module.exports.canManage = (user) => {
+    try {
+        checkAccessLevel(user, 'Manage');
+        return true;
+    }
+    catch {
+        return false;
+    }
+} 
+
+module.exports.checkCanManage = async (req, res, next) => {
+    try {
+        checkAccessLevel(req.user, 'Manage');
+        next();
+    }
+    catch (error) {
+        var err = processError(error);
+        next(err);
+    }
+}
+
+module.exports.requireSelfOrManage = async (req, res, next) => {
+    try {
+        var unless = req.params?.UserID != null
+            && req.user.ID == req.params.UserID;
+
+        checkAccessLevel(req.user, 'Manage', unless);
+        next();
+    }
+    catch (error) {
+        var err = processError(error);
+        next(err);
+    }
+}

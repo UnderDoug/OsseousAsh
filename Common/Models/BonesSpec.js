@@ -7,8 +7,8 @@ module.exports.BonesSpec = class BonesSpec extends Model {
         BonesSpec.init(
             {
                 ID: {
-                    type: DataTypes.INTEGER,
-                    autoIncrement: true,
+                    type: DataTypes.UUID,
+                    autoIncrement: false,
                     allowNull: false,
                     primaryKey: true,
                     unique: true,
@@ -51,6 +51,9 @@ module.exports.BonesSpec = class BonesSpec extends Model {
             },
             {
                 scopes: {
+                    defaultScope: {
+                        attributes: { exclude: ['ID'] },
+                    },
                     ofBones(BonesID) {
                         return {
                             where: {
@@ -60,7 +63,8 @@ module.exports.BonesSpec = class BonesSpec extends Model {
                     },
                 },
                 sequelize: sequelize,
-                modelName: 'BonesSpec'
+                freezeTableName: true,
+                modelName: 'BonesSpec',
             }
         );
     };
@@ -76,6 +80,19 @@ module.exports.BonesSpec = class BonesSpec extends Model {
         Abyssal: 4,     // Strata 41-997
         CryoClone: 5,   // Strata 998+
     });
+
+    static wildcardSpec = (query) => {
+        return {
+            ID: query?.BonesID || '00000000-0000-0000-0000-000000000000',
+            Level: query?.Level || -1,
+            ZoneID: query?.ZoneID || wildcard,
+            ZoneZ: query?.ZoneZ || -1,
+            ZoneTier: query?.ZoneTier || -1,
+            ZoneTerrainType: query?.ZoneTerrainType || wildcard,
+            RegionTier: query?.RegionTier || -1,
+            TerrainTravelClass: query?.TerrainTravelClass || wildcard,
+        };
+    }
 
     static approxDepthFromZoneZ(ZoneZ) {
         if (ZoneZ >= 998) {

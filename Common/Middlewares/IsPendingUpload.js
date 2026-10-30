@@ -2,11 +2,11 @@ const { logger } = require('../logger');
 const { Op } = require('sequelize');
 const { Bones } = require('../Models/Bones');
 
-const tokenDuration = 180000; // 3 minutes in ms
+module.exports.uploadTokenDuration = 180000; // 3 minutes in ms
 
-const tokenRecords = {}
+module.exports.uploadTokenRecords = {};
 
-const clearToken = (token, doClearTimeout = true) => {
+module.exports.clearUploadToken = (token, doClearTimeout = true) => {
     try {
         var tokenRecord = tokenRecords[token];
         if (tokenRecord) {
@@ -26,18 +26,19 @@ const clearToken = (token, doClearTimeout = true) => {
         }
     }
     catch (error) {
-        console.log('Failed to clear token:', token, ',', error.message);
+        logger.error(`Failed to clear token: ${token}, ${error.message}`);
     }
 }
 
-const getToken = (BonesID) => {
+module.exports.produceUploadToken = (BonesID) => {
     try {
         var token = crypto.randomUUID();
         tokenRecords[token] = {
             BonesID: BonesID,
             TimeStamp: Date.now(),
             Timer: setTimeout(async () => {
-                console.log('Expired token', token ?? 'NO_TOKEN', ',', 'deleting dataless Bones:', BonesID);
+                let tokenString = token ?? 'NO_TOKEN';
+                logger.log(`Expired token ${tokenString}; deleting dataless Bones: ${BonesID}`);
                 try {
                     await Bones.destroy({
                         where: {
@@ -47,7 +48,8 @@ const getToken = (BonesID) => {
                     });
                 }
                 catch (error) {
-                    console.log('Error deleting Bones', BonesID ?? 'NO_BONES_ID', ',', error.message);
+                    let bonesID = BonesID ?? 'NO_BONES_ID';
+                    logger.error(`Error deleting Bones ${tokenString}; deleting dataless Bones: ${bonesID}, ${error.message}`);
                 }
 
                 clearToken(token, false);
@@ -56,28 +58,29 @@ const getToken = (BonesID) => {
         return token;
     }
     catch (error) {
-        console.log('Failed to create token:', token ?? 'NO_TOKEN', ',', error.message);
+        let tokenString = token ?? 'NO_TOKEN';
+        logger.error(`Failed to create token: ${tokenString}, ${error.message}`);
     }
 }
 
-const produceToken = (req, res, next) => {
+module.exports.assignUploadToken = (req, res, next) => {
     try {
-        req.token = getToken(req.body.BonesID);
-        console.log('BonesID:', req.body.BonesID, 'token:', req.token);
+        req.basicToken = getToken(req.body.BonesID);
+        logger.log('BonesID:', req.body.BonesID, 'token:', req.basicToken);
         next();
     }
     catch (error) {
-        console.log('Failed to create token for follow up SavGz PUT');
+        logger.error('Failed to create token for follow up SavGz PUT');
         const err = new Error(`Failed to create token for follow up SavGz PUT, ${error.message}`);
         err.status = 500;
         next(err);
     }
-};
+}
 
-const checkToken = (req, res, next) => {
+module.exports.checkUploadAuth = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
-        console.log('No authorization header provided');
+        logger.log('No authorization header provided');
         return res.status(401).json({
             error: 'No authorization header provided'
         });
@@ -85,7 +88,7 @@ const checkToken = (req, res, next) => {
 
     const [type, token] = authHeader.split(' ');
     if (type != 'basic') {
-        console.log('Authorization token missing');
+        logger.error('Authorization token missing');
         return res.status(401).json({
             error: 'Authorization token missing'
         });
@@ -93,20 +96,20 @@ const checkToken = (req, res, next) => {
 
     var tokenRecord = tokenRecords[token];
     if (!tokenRecord) {
-        console.log('Authorization token missing');
+        logger.error('Authorization token missing');
         return res.status(401).json({
             error: 'Authorization token missing'
         });
     }
     if (tokenRecord.BonesID != req.params.BonesID) {
-        console.log('Authorization token invalid');
+        logger.error('Authorization token invalid');
         return res.status(401).json({
             error: 'Authorization token invalid'
         });
     }
 
     if (!tokenRecord.TimeStamp) {
-        console.log('Authorization token missing');
+        logger.error('Authorization token missing');
         return res.status(401).json({
             error: 'Authorization token missing'
         });
@@ -115,29 +118,21 @@ const checkToken = (req, res, next) => {
     const checkValue = Date.now() - tokenRecord.TimeStamp;
     if (checkValue > tokenDuration) {
         clearToken(req.token);
-        console.log('Authorization token expired');
+        logger.error('Authorization token expired');
         return res.status(401).json({
             error: 'Authorization token expired'
         });
     }
 
     try {
-        req.token = token;
+        req.basicToken = token;
         next();
     }
     catch (error) {
         var errorMsg = `Failed to assign token to request, ${error.message}`;
-        console.log(errorMsg);
+        logger.error(errorMsg);
         const err = new Error(errorMsg);
         err.status = 500;
         next(err);
     }
-};
-
-module.exports = {
-    tokenDuration,
-    tokenRecords,
-    clearToken,
-    produceToken,
-    checkToken,
 }

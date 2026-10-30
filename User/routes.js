@@ -1,22 +1,35 @@
 const router = require('express').Router();
 const { request } = require('express');
 const UserController = require('./controller');
+const { checkAuth, checkCanDownload, checkCanUpload, checkCanManage, requireSelfOrManage } = require('./../Common/Middlewares/IsAuthenticated');
 
-const checkWL = require('./../Common/Middlewares/IsWhiteListed').check;
-const { checkAuth } = require('./../Common/Middlewares/IsAuthenticated');
+// public userID ability to upload to this server as a true/false
+router.get('/users/:UserID/upload-eligibility', UserController.getCanUp);
 
-router.get('/canUp/:UserID', checkWL, async (req, res) => {
-    res.status(200).json(true);
-});
+// new user
+router.post('/users', UserController.createUser);
 
-router.post('/User/new', checkWL, UserController.createUser);
-router.post('/User/Update/:UserID', checkAuth, UserController.updateUser);
+// update user
+router.put('/users/:UserID', checkAuth, checkCanManage, UserController.updateUser);                          // private
+router.put('/users/:UserID/handle', checkAuth, requireSelfOrManage, UserController.updateUserHandle);   // public
+router.put('/users/:UserID/password', checkAuth, requireSelfOrManage, UserController.updateUserHandle); // public
 
-router.post('/User/Login', UserController.postLogin);
+// procure a jwt-token
+// include 'basic password' authorization header.
+// returns tokenized UserID and SessionID
+router.get('/users/:UserID/session', UserController.getSession);
 
-router.get('/Users', UserController.getAllUsers);
-router.get('/User/:UserID', UserController.getUser);
-router.post('/User/Status/:UserID', checkAuth, UserController.getUserStatus);
-router.post('/User/Handle/:UserID', checkAuth, UserController.getUserHandle);
+// display only user handle, status, access, created date and updated date of every user
+router.get('/users', UserController.getAllUsers);
+
+router.get('/users/:UserID/status', UserController.getUserStatus);
+router.get('/users/:UserID/handle', UserController.getUserHandle);
+
+// display all details (obfuscated password if one exists) of a given user.
+router.get('/users/:UserID', checkAuth, requireSelfOrManage, UserController.getUser);
+
+// reports related
+router.get('/users/:UserID/reports', checkAuth, requireSelfOrManage, UserController.getAllReports);
+router.delete('/users/:UserID/reports', checkAuth, requireSelfOrManage, UserController.deleteAllReports);
 
 module.exports = router;

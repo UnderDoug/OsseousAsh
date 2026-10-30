@@ -6,6 +6,9 @@ const {
     Bones,
     Report,
     BonesSpec,
+    BonesStats,
+    ModRecord,
+    ModConfig,
 } = require('./models');
 
 // one bones comes from a single user
@@ -44,6 +47,7 @@ Bones.hasMany(Report.scope({ method: ['ofBones', sequelize.col('ID')] }), {
     where: {
         SavGz: { [Op.is]: null },
     },
+    foreignKey: 'BonesID', // this prevents 'BoneID' as a duplicate
 });
 Report.Bones = Report.belongsTo(Bones, {
     foreignKey: 'BonesID', // this prevents 'BoneID' as a duplicate
@@ -52,12 +56,43 @@ Report.Bones = Report.belongsTo(Bones, {
 // one BonesSpec is for a single bones
 // one bones has one BonesSpec
 Bones.BonesSpec = Bones.hasOne(BonesSpec, {
-    foreignKey: 'BonesID',
+    foreignKey: 'ID',
     where: {
         SavGz: { [Op.is]: null },
     },
+    as: 'BonesSpec'
 });
 BonesSpec.Bones = BonesSpec.belongsTo(Bones, {
-    foreignKey: 'BonesID', // this prevents 'BoneID' as a duplicate
-    as: 'Bones'
+    foreignKey: 'ID', // this prevents 'BoneID' as a duplicate
 });
+
+// one BonesStats is for a single bones
+// one bones has one BonesStats
+Bones.Stats = Bones.hasOne(BonesStats, {
+    foreignKey: 'ID',
+    where: {
+        SavGz: { [Op.is]: null },
+    },
+    as: 'Stats'
+});
+BonesStats.Bones = BonesStats.belongsTo(Bones, {
+    foreignKey: 'ID', // this prevents 'BoneID' as a duplicate
+});
+
+// one ModConfig is for a single bones
+// one bones has one ModConfig
+Bones.ModConfig = Bones.hasOne(ModConfig, {
+    foreignKey: 'ID',
+    where: {
+        SavGz: { [Op.is]: null },
+    },
+    as: 'ModConfig'
+});
+ModConfig.Bones = ModConfig.belongsTo(Bones, {
+    foreignKey: 'ID', // this prevents 'BoneID' as a duplicate
+});
+
+// multiple ModConfigs have multiple ModRecords
+const ModConfig_Record = sequelize.define('ModConfig_Record', {}, { timestamps: false, freezeTableName: true, });
+ModConfig.belongsToMany(ModRecord, { through: ModConfig_Record });
+ModRecord.belongsToMany(ModConfig, { through: ModConfig_Record });

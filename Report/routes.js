@@ -2,32 +2,27 @@ const router = require('express').Router();
 const { request } = require('express');
 const ReportController = require('./controller');
 
-const { check } = require('../Common/Middlewares/IsWhiteListed');
-const { checkAuth } = require('./../Common/Middlewares/IsAuthenticated');
+const { checkAuth, requireSelfOrManage } = require('./../Common/Middlewares/IsAuthenticated');
 
 // upload report
-router.post('/Report/new', check, ReportController.createReport);
+router.post('/reports', checkAuth, ReportController.createReport);
 
 // update report
-router.put('/Report/:ReportID', checkAuth, ReportController.updateReport);
-router.put('/Report/Blocked/:BonesID/:UserID', ReportController.updateBlocked);
+router.put('/reports/:ReportID', checkAuth, requireSelfOrManage, ReportController.updateReport);
+router.put('/reports/:BonesID/:UserID/blocked', checkAuth, requireSelfOrManage, ReportController.updateBlocked);
 
 // check report exists from UserID
-router.get('/Report/Check/:BonesID/:UserID', ReportController.getHasReported);
-router.get('/Report/Blocked/:BonesID/:UserID', ReportController.getBlocked);
-router.get('/Report/:ReportID', ReportController.getReport);
+router.get('/reports/:BonesID/:UserID/confirmation', checkAuth, requireSelfOrManage, ReportController.getHasReported);
+router.get('/reports/:BonesID/:UserID/blocked', checkAuth, requireSelfOrManage, ReportController.getBlocked);
+router.get('/reports/:ReportID', checkAuth, requireSelfOrManage, ReportController.getReport);
 
 // list report(s)
-router.post('/Reports/:BonesID/:UserID', ReportController.getReports);
-router.post('/Reports/User/:UserID', ReportController.getAllReports);
-router.post('/Reports/Bones/:BonesID', checkAuth, ReportController.getAllReports);
-router.post('/Reports', checkAuth, ReportController.getAllReports);
+router.get('/reports/:BonesID/:UserID', checkAuth, requireSelfOrManage, ReportController.getReports);
+router.get('/reports', checkAuth, requireSelfOrManage, ReportController.getAllReports);
 
 // delete report(s)
-router.delete('/Report/del/:ReportID', ReportController.deleteReport);
-router.delete('/del/Reports/:BonesID/:UserID', ReportController.deleteAllReports);
-router.delete('/del/Reports/User/:UserID', ReportController.deleteAllReports);
-router.delete('/del/Reports/Bones/:BonesID', ReportController.deleteAllReports);
-router.delete('/del/Reports', ReportController.deleteAllReports);
+router.delete('/reports/:ReportID', checkAuth, requireSelfOrManage, ReportController.deleteReport);
+router.delete('/reports/:BonesID/:UserID', checkAuth, requireSelfOrManage, ReportController.deleteAllReports);
+router.delete('/reports', checkAuth, requireSelfOrManage, ReportController.deleteAllReports);
 
 module.exports = router;

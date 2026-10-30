@@ -91,12 +91,12 @@ const updateReport = async (req, res) => {
             Actioned: req.body.Actioned
         });
         catchMessage = `Failed to save Report: ${ReportID}`;
-        await bones.save({
+        await report.save({
             fields: ['Actioned']
         });
 
         catchMessage = `Failed to reload Report: ${ReportID}`;
-        await bones.reload();
+        await report.reload();
 
         catchMessage = `Failed to report susccess: ${ReportID}`;
         
@@ -104,9 +104,6 @@ const updateReport = async (req, res) => {
             User: `${req.token.user.UserID}`,
             Stats: report,
         };
-        if (caughtEx) {
-            output.info = caughtEx;
-        }
 
         logger.info(output);
         res.status(200).json(output);
@@ -124,40 +121,65 @@ const updateReport = async (req, res) => {
 const updateBlocked = async (req, res) => {
     var catchMessage = '';
     try {
-        const ReportID = req.params.ReportID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
 
-        catchMessage = `Failed to find Report: ${ReportID}`;
-        const report = await Report.findByPk(ReportID);
+        var value = null;
+        if (req.Body.Value != null) {
+            value = Value;
+        }
 
-        if (!report) {
+        var condition = {
+            UserID: UserID,
+            BonesID: BonesID,
+        }
+
+        catchMessage = `Failed to find Reports where: ${condition}`;
+        const reports = await Report.unscoped().findAll({
+            where: condition,
+        });
+
+        if (!reports) {
             var output = {
-                error: `Report not found: ${ReportID}`
+                error: `no Reports where: ${condition}`
             };
             logger.warn(output);
             return res.status(204).json(output);
         }
 
         catchMessage = `Failed to update Blocked: ${ReportID}`;
-        report.update({
-            Blocked: !report.Blocked
-        });
-        catchMessage = `Failed to save Blocked: ${ReportID}`;
-        await bones.save({
-            fields: ['Blocked']
-        });
+        for (let i = 0; i < reports.length; i++) {
+            let report = reports[i];
+            let setValue = value;
+            if (setValue == null) {
+                setValue = !report.Blocked
+            }
+            try {
+                report.update({
+                    Blocked: setValue
+                });
+                catchMessage = `Failed to save Blocked: ${report.ID}`;
+                await bones.save({
+                    fields: ['Blocked']
+                });
 
-        catchMessage = `Failed to reload Report: ${ReportID}`;
-        await bones.reload();
+                catchMessage = `Failed to reload Report: ${report.ID}`;
+                await report.reload();
 
-        catchMessage = `Failed to report susccess: ${ReportID}`;
-        
+                catchMessage = `Failed to report susccess: ${report.ID}`;
+            }
+            catch (error) {
+                error.catchMessage = catchMessage
+                logger.warn(error);
+            }
+        }
+
         var output = {
             User: `${req.token.user.UserID}`,
             Stats: report,
         };
-        if (caughtEx) {
-            output.info = caughtEx;
-        }
 
         logger.info(output);
         res.status(200).json(output);
@@ -173,15 +195,16 @@ const updateBlocked = async (req, res) => {
 };
 
 const getHasReported = async (req, res) => {
-    let userID;
-    let bonesID;
     try {
-        userID = req.params.UserID
-        bonesID = req.params.BonesID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
+
         const reports = await Report.findAll({
             where: {
-                UserID: userID,
-                BonesID: bonesID,
+                UserID: UserID,
+                BonesID: BonesID,
             },
         });
 
@@ -207,22 +230,23 @@ const getHasReported = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
+            message: `Error retrieving Reports, BonesID: ${BonesID}, UserID: ${UserID}`,
             error: error.message
         });
     }
 };
 
 const getBlocked = async (req, res) => {
-    let userID;
-    let bonesID;
     try {
-        userID = req.params.UserID
-        bonesID = req.params.BonesID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
+
         const reports = await Report.findAll({
             where: {
-                UserID: userID,
-                BonesID: bonesID,
+                UserID: UserID,
+                BonesID: BonesID,
                 Blocked: true,
             },
         });
@@ -233,16 +257,15 @@ const getBlocked = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
+            message: `Error retrieving Reports, BonesID: ${BonesID}, UserID: ${UserID}`,
             error: error.message
         });
     }
 };
 
 const getReport = async (req, res) => {
-    let reportID;
     try {
-        reportID = req.params.ReportID
+        var reportID = req.params.ReportID
         const report = await Report.findByPk(reportID);
 
         if (!report)
@@ -261,23 +284,23 @@ const getReport = async (req, res) => {
 };
 
 const getReports = async (req, res) => {
-    let userID;
-    let bonesID;
     try {
-        userID = req.params.UserID
-        bonesID = req.params.BonesID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
 
         var condition = {};
 
-        if (userID) {
-            condition.UserID = userID;
+        if (UserID) {
+            condition.UserID = UserID;
         }
-        if (bonesID) {
-            condition.BonesID = bonesID;
+        if (BonesID) {
+            condition.BonesID = BonesID;
         }
 
-        if (!userID
-            && !bonesID) {
+        if (!UserID
+            && !BonesID) {
             var output = {
                 message: 'Request requires at least one of BonesID or UserID',
             };
@@ -303,31 +326,31 @@ const getReports = async (req, res) => {
     }
     catch (error) {
         logger.caught(res, 500, {
-            message: `Error retrieving Reports, BonesID: ${bonesID}, UserID: ${UserID}`,
+            message: `Error retrieving Reports, BonesID: ${BonesID}, UserID: ${UserID}`,
             error: error.message
         });
     }
 };
 
 const getAllReports = async (req, res) => {
-    let userID;
-    let bonesID;
     try {
-        userID = req.params.UserID
-        bonesID = req.params.BonesID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
 
         var condition = {};
 
-        if (userID) {
-            condition.UserID = userID;
+        if (UserID) {
+            condition.UserID = UserID;
         }
-        if (bonesID) {
-            condition.BonesID = bonesID;
+        if (BonesID) {
+            condition.BonesID = BonesID;
         }
 
         var reportsRaw = null;
-        if (userID
-            || bonesID) {
+        if (UserID
+            || BonesID) {
             reportsRaw = await Report.findAll({
                 where: condition,
                 order: [
@@ -364,9 +387,8 @@ const getAllReports = async (req, res) => {
 };
 
 const deleteReport = async (req, res) => {
-    let reportID;
     try {
-        reportID = req.params.BonesID
+        var reportID = req.params.BonesID
         const report = await Report.findByPk(reportID);
 
         if (!report) {
@@ -393,27 +415,27 @@ const deleteReport = async (req, res) => {
 };
 
 const deleteAllReports = async (req, res) => {
-    let userID;
-    let bonesID;
-    let deleteCount = 0;
+    var deleteCount = 0;
     var errors = {};
     var errorCount = 0;
     try {
-        userID = req.params.UserID
-        bonesID = req.params.BonesID
+        const {
+            UserID,
+            BonesID
+        } = req.params;
 
         var condition = {};
 
-        if (userID) {
-            condition.UserID = userID;
+        if (UserID) {
+            condition.UserID = UserID;
         }
-        if (bonesID) {
-            condition.BonesID = bonesID;
+        if (BonesID) {
+            condition.BonesID = BonesID;
         }
 
         var reportsRaw = null;
-        if (userID
-            || bonesID) {
+        if (UserID
+            || BonesID) {
             reportsRaw = await Report.findAll({
                 where: condition,
             });
@@ -458,11 +480,11 @@ const deleteAllReports = async (req, res) => {
 
     var message = `Deleted all Reports`;
 
-    if (bonesID) {
-        message += `, BonesID: ${bonesID}`;
+    if (BonesID) {
+        message += `, BonesID: ${BonesID}`;
     }
-    if (userID) {
-        message += `, UserID: ${userID}`;
+    if (UserID) {
+        message += `, UserID: ${UserID}`;
     }
     var output = {
         deleted: deleteCount,
