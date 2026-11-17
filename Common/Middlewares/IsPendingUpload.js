@@ -1,6 +1,13 @@
 const { logger } = require('../logger');
 const { Op } = require('sequelize');
-const { Bones } = require('../Models/Bones');
+const {
+    Bones,
+    Report,
+    BonesSpec,
+    BonesStats,
+    ModConfig,
+    ModConfigRecord,
+} = require('../models');
 
 module.exports.uploadTokenDuration = 180000; // 3 minutes in ms
 
@@ -8,21 +15,24 @@ module.exports.uploadTokenRecords = {};
 
 module.exports.clearUploadToken = (token, doClearTimeout = true) => {
     try {
-        var tokenRecord = tokenRecords[token];
+        var tokenRecord = this.uploadTokenRecords[token];
         if (tokenRecord) {
             if (tokenRecord.BonesID) {
-                tokenRecord.BonesID = null;
+                delete tokenRecord.BonesID;
             }
             if (tokenRecord.TimeStamp) {
-                tokenRecord.TimeStamp = null;
+                delete tokenRecord.TimeStamp;
             }
             if (tokenRecord.Timer) {
-                if (doClearTimeout) {
+                if (doClearTimeout
+                    || tokenRecord.ClearAttemps++ > 2) {
                     clearTimeout(tokenRecord.Timer);
+                    delete tokenRecord.Timer;
                 }
-                tokenRecord.Timer = null;
             }
-            tokenRecords[token] = null;
+            if (this.uploadTokenRecords[token]) {
+                delete this.uploadTokenRecords[token];
+            }
         }
     }
     catch (error) {
@@ -30,48 +40,55 @@ module.exports.clearUploadToken = (token, doClearTimeout = true) => {
     }
 }
 
+module.exports.tidyDatalessBones = async (Token) => {
+    const bonesID = this.getBonesID(Token);
+    const BonesController = require('../../Bones/controller');
+    let tokenString = Token ?? 'NO_TOKEN';
+    logger.info(`Expired token ${tokenString}; deleting dataless Bones: ${bonesID}`);
+    var catchMessage = `top of the run`;
+    try {
+        if (!await Bones.findByPk(bonesID)) {
+            catchMessage = `tidySingleBones`;
+            var fragments = await BonesController.tidySingleBones(bonesID, { Errors: 0 });
+            logger.info(`bone fragments tidied!\n${JSON.stringify(fragments, null, 4)}\n`);
+        }
+        else {
+            logger.info(`bones with ID [${bonesID}] has data!`);
+        }
+    }
+    catch (error) {
+        let bonesID = bonesID ?? 'NO_BONES_ID';
+        logger.error(`Error deleting UploadToken ${tokenString}; deleting dataless Bones (${catchMessage}): [${bonesID}], ${error.message}`);
+    }
+
+    this.clearUploadToken(Token, false);
+};
+
 module.exports.produceUploadToken = (BonesID) => {
     try {
         var token = crypto.randomUUID();
-        tokenRecords[token] = {
+        this.uploadTokenRecords[token] = {
             BonesID: BonesID,
             TimeStamp: Date.now(),
-            Timer: setTimeout(async () => {
-                let tokenString = token ?? 'NO_TOKEN';
-                logger.log(`Expired token ${tokenString}; deleting dataless Bones: ${BonesID}`);
-                try {
-                    await Bones.destroy({
-                        where: {
-                            ID: BonesID,
-                            SavGz: { [Op.is]: null },
-                        }
-                    });
-                }
-                catch (error) {
-                    let bonesID = BonesID ?? 'NO_BONES_ID';
-                    logger.error(`Error deleting Bones ${tokenString}; deleting dataless Bones: ${bonesID}, ${error.message}`);
-                }
-
-                clearToken(token, false);
-            }, tokenDuration),
+            ClearAttemps: 0,
+            Timer: setTimeout(this.tidyDatalessBones, this.uploadTokenDuration, token),
         };
         return token;
     }
     catch (error) {
         let tokenString = token ?? 'NO_TOKEN';
-        logger.error(`Failed to create token: ${tokenString}, ${error.message}`);
+        logger.error(`Failed to create UploadToken: ${tokenString}, ${error.message}`);
     }
 }
 
 module.exports.assignUploadToken = (req, res, next) => {
     try {
-        req.basicToken = getToken(req.body.BonesID);
-        logger.log('BonesID:', req.body.BonesID, 'token:', req.basicToken);
+        req.basicToken = this.produceUploadToken(req.body?.BonesID);
+        logger.info(`BonesID: ${req.body?.BonesID}, UploadToken: ${req?.basicToken}`);
         next();
     }
     catch (error) {
-        logger.error('Failed to create token for follow up SavGz PUT');
-        const err = new Error(`Failed to create token for follow up SavGz PUT, ${error.message}`);
+        const err = new Error(`Failed to create UploadToken for follow up SavGz PUT, ${error.message}`);
         err.status = 500;
         next(err);
     }
@@ -80,47 +97,59 @@ module.exports.assignUploadToken = (req, res, next) => {
 module.exports.checkUploadAuth = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
-        logger.log('No authorization header provided');
+        logger.info('No authorization header provided');
+        var bonesID = req.params?.BonesID;
+        if (bonesID) {
+            let token = this.getToken(bonesID);
+            if (token) {
+                this.tidyDatalessBones(req.token);
+            }
+        }
         return res.status(401).json({
-            error: 'No authorization header provided'
+            error: 'No authorization header provided',
+            cancel: true,
         });
     }
 
     const [type, token] = authHeader.split(' ');
     if (type != 'basic') {
-        logger.error('Authorization token missing');
+        logger.error('No upload token provided');
         return res.status(401).json({
-            error: 'Authorization token missing'
+            error: 'No upload token provided',
+            cancel: true,
         });
     }
 
-    var tokenRecord = tokenRecords[token];
+    var tokenRecord = this.uploadTokenRecords[token];
     if (!tokenRecord) {
-        logger.error('Authorization token missing');
+        logger.error('Upload token missing');
         return res.status(401).json({
-            error: 'Authorization token missing'
+            error: 'Upload token missing',
+            cancel: true,
         });
     }
     if (tokenRecord.BonesID != req.params.BonesID) {
-        logger.error('Authorization token invalid');
+        logger.error('Upload token invalid');
+        this.tidyDatalessBones(req.token);
         return res.status(401).json({
-            error: 'Authorization token invalid'
+            error: 'Upload token invalid'
         });
     }
 
     if (!tokenRecord.TimeStamp) {
-        logger.error('Authorization token missing');
+        logger.error('Upload token missing timestamp');
+        this.tidyDatalessBones(req.token);
         return res.status(401).json({
-            error: 'Authorization token missing'
+            error: 'Upload token missing timestamp'
         });
     }
 
     const checkValue = Date.now() - tokenRecord.TimeStamp;
-    if (checkValue > tokenDuration) {
-        clearToken(req.token);
-        logger.error('Authorization token expired');
+    if (checkValue > this.uploadTokenDuration) {
+        this.tidyDatalessBones(req.token);
+        logger.error('Upload token expired');
         return res.status(401).json({
-            error: 'Authorization token expired'
+            error: 'Upload token expired'
         });
     }
 
@@ -129,10 +158,30 @@ module.exports.checkUploadAuth = (req, res, next) => {
         next();
     }
     catch (error) {
-        var errorMsg = `Failed to assign token to request, ${error.message}`;
-        logger.error(errorMsg);
+        var errorMsg = `Failed to assign upload token to request, ${error.message}`;
         const err = new Error(errorMsg);
         err.status = 500;
         next(err);
     }
+}
+
+module.exports.getBonesID = (Token) => {
+    if (Token) {
+        return this.uploadTokenRecords[Token]?.BonesID;
+    }
+}
+
+module.exports.getToken = (BonesID) => {
+    if (BonesID) {
+        const keys = Object.keys(this.uploadTokenRecords);
+        return keys.reduce(function (acc, next, index) {
+            if (!acc) {
+                if (this[next].BonesID == BonesID) {
+                    acc = next;
+                }
+            }
+            return acc;
+        }, this.uploadTokenRecords);
+    }
+    return null;
 }

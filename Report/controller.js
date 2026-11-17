@@ -74,7 +74,7 @@ const updateReport = async (req, res) => {
             var output = {
                 error: `Report not found: ${ReportID}`
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -82,7 +82,7 @@ const updateReport = async (req, res) => {
             var output = {
                 error: `No action with which to update`
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -105,7 +105,7 @@ const updateReport = async (req, res) => {
             Stats: report,
         };
 
-        logger.info(output);
+        logger.info(JSON.stringify(output, null, 4));
         res.status(200).json(output);
     }
     catch (error) {
@@ -113,7 +113,7 @@ const updateReport = async (req, res) => {
             message: catchMessage,
             error: error.message
         };
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 };
@@ -145,7 +145,7 @@ const updateBlocked = async (req, res) => {
             var output = {
                 error: `no Reports where: ${condition}`
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -172,7 +172,7 @@ const updateBlocked = async (req, res) => {
             }
             catch (error) {
                 error.catchMessage = catchMessage
-                logger.warn(error);
+                logger.warn(JSON.stringify(error, null, 4));
             }
         }
 
@@ -181,7 +181,7 @@ const updateBlocked = async (req, res) => {
             Stats: report,
         };
 
-        logger.info(output);
+        logger.info(JSON.stringify(output, null, 4));
         res.status(200).json(output);
     }
     catch (error) {
@@ -189,7 +189,7 @@ const updateBlocked = async (req, res) => {
             message: catchMessage,
             error: error.message
         };
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 };
@@ -304,7 +304,7 @@ const getReports = async (req, res) => {
             var output = {
                 message: 'Request requires at least one of BonesID or UserID',
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(500).json(output);
         }
            
@@ -381,7 +381,7 @@ const getAllReports = async (req, res) => {
             message: 'Error retrieving All Reports',
             error: error.message
         };
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 };
@@ -395,13 +395,13 @@ const deleteReport = async (req, res) => {
             var output = {
                 error: `Report not found: ${reportID}`
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
         var output = {
             message: `Deleted Report with ID: ${reportID}`
         };
-        logger.info(output);
+        logger.info(JSON.stringify(output, null, 4));
         res.status(200).json(output);
     }
     catch (error) {
@@ -409,7 +409,7 @@ const deleteReport = async (req, res) => {
             message: `Error deleting Report: ${reportID}`,
             error: error.message
         };
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 };
@@ -474,7 +474,7 @@ const deleteAllReports = async (req, res) => {
             error: error.message,
             reportErrors: errors,
         }
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 
@@ -491,7 +491,7 @@ const deleteAllReports = async (req, res) => {
         message: message,
         reportErrors: errors,
     };
-    logger.info(output);
+    logger.info(JSON.stringify(output, null, 4));
     res.status(200).json(output);
 };
 

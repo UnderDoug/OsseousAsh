@@ -1,4 +1,9 @@
 const { DataTypes, Model, Sequelize, Op } = require('sequelize');
+const {
+    USER_DEFAULT_HANDLE,
+    USER_DEFAULT_STATUS,
+    USER_DEFAULT_ACCESS,
+} = process.env;
 const sequelize = require('../database');
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
@@ -17,14 +22,17 @@ module.exports.User = class User extends Model {
                 Handle: {
                     type: DataTypes.STRING,
                     allowNull: false,
+                    defaultValue: USER_DEFAULT_HANDLE,
                 },
                 Status: {
                     type: DataTypes.ENUM('None', 'Disabled', 'Pending', 'Active'),
                     allowNull: false,
+                    defaultValue: USER_DEFAULT_STATUS,
                 },
                 Access: {
                     type: DataTypes.ENUM('None', 'Down', 'Up', 'Manage'),
                     allowNull: false,
+                    defaultValue: USER_DEFAULT_ACCESS,
                 },
                 Password: {
                     type: DataTypes.STRING,
@@ -54,44 +62,58 @@ module.exports.User = class User extends Model {
                     allowNull: false,
                     defaultValue: false,
                 },
-                SessionID: {
+                /*SessionID: {
                     type: DataTypes.UUID,
                     autoIncrement: false,
                     allowNull: true,
-                },
+                },*/
             },
             {
                 defaultScope: {
-                    attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty', 'SessionID'] },
+                    attributes: { exclude: User.privateFields, },
                 },
                 scopes: {
-                    includePassword: {
-                        attributes: { exclude: ['SessionID'] },
+                    public: {
+                        attributes: { exclude: User.privateFields, },
                     },
-                    session: {
-                        attributes: ['SessionID'],
+                    private: {
                     },
-                    pending: {
-                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
+                    publicWithPassword: {
+                        attributes: { exclude: User.privateExclPassFields, },
+                    },
+                    withSessions: {
+                        include: {
+                            association: 'Sessions',
+                            attributes: { exclude: ['UserID'], },
+                        }
+                    },
+                    isPending: {
                         where: {
                             Status: 'Pending',
                         },
                     },
-                    disabled: {
-                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
+                    isDisabled: {
                         where: {
                             Status: 'Disabled',
                         },
                     },
+                    isActive: {
+                        where: {
+                            Status: 'Active',
+                        },
+                    },
+                    isNaughty: {
+                        where: {
+                            Naughty: true,
+                        },
+                    },
                     canManage: {
-                        attributes: { exclude: ['ID', 'Password', 'Suspicious', 'Naughty'] },
                         where: {
                             Status: 'Active',
                             Access: 'Manage',
                         },
                     },
                     canUp: {
-                        attributes: ['Status', 'Access'],
                         where: {
                             Status: 'Active',
                             Access: {
@@ -99,7 +121,7 @@ module.exports.User = class User extends Model {
                             },
                         },
                     },
-                    forBones: {
+                    forBonesJSON: {
                         attributes: ['ID', 'Handle'],
                     },
                 },
@@ -108,36 +130,35 @@ module.exports.User = class User extends Model {
             }
         );
         User.beforeCreate(async (user, options) => {
-            try {
-                const userPassword = user.passwordValue();
-                if (userPassword) {
-                    const hash = await bcrypt.hash(user.passwordValue(), saltRounds);
-                    user.Password = hash;
-                }
-            }
-            catch (error) {
-                logger.error(error);
-                throw error;
-            }
+            await user.hashPassword();
         });
         User.beforeUpdate(async (user, options) => {
             if (user.changed('Password')) {
-                try {
-                    const userPassword = user.passwordValue();
-                    if (userPassword) {
-                        const hash = await bcrypt.hash(user.passwordValue(), saltRounds);
-                        user.Password = hash;
-                    }
-                }
-                catch (error) {
-                    logger.error(error);
-                    throw error;
-                }
+                await user.hashPassword();
             }
         });
     };
+
+    static privateFields = ['ID', 'Password', 'Suspicious', 'Naughty'];
+    static privateExclPassFields = ['ID', 'Suspicious', 'Naughty'];
+    static privateExclIDFields = ['Password', 'Suspicious', 'Naughty'];
+
     passwordValue() {
         return this.getDataValue('Password');
+    }
+
+    hashPassword = async() => {
+        try {
+            const userPassword = this.passwordValue();
+            if (userPassword) {
+                const hash = await bcrypt.hash(userPassword, saltRounds);
+                user.Password = hash;
+            }
+        }
+        catch (error) {
+            logger.error(JSON.stringify(error, null, 4));
+            throw error;
+        }
     }
 
     checkPassword = async (password) => {
@@ -172,4 +193,70 @@ module.exports.User = class User extends Model {
         Up: 2,
         Manage: 3,
     });
+
+    static checkAccessLevel = (user, level, unless) => {
+        if (!user) {
+            let err = new Error(`User was null`);
+            err.name = 'MissingUser';
+            throw err;
+        }
+        if (User.accessLevels[user.Access] < User.accessLevels[level]) {
+            if (!unless) {
+                let err = new Error(`Insufficient user access`);
+                err.name = 'InsufficientAccess';
+                throw err;
+            }
+        }
+        return true;
+    }
+    checkAccessLevel = (level, unless) => {
+        return User.checkAccessLevel(this, level, unless)
+    }
+
+    static checkStatusType = (user, type, unless) => {
+        if (!user) {
+            let err = new Error(`User was null`);
+            err.name = 'MissingUser';
+            throw err;
+        }
+        if (User.statusTypes[user.Status] < User.statusTypes[type]) {
+            if (!unless) {
+                let err = new Error(`Invalid user status: ${user.Status}`);
+                err.name = 'InvalidUserStatus';
+                throw err;
+            }
+        }
+        return true;
+    }
+    checkStatusType = (type, unless) => {
+        return User.checkStatusType(type, unless)
+    }
+    
+    static canManage = (user) => {
+        try {
+            User.checkAccessLevel(user, 'Manage');
+            return true;
+        }
+        catch {
+            return false;
+        }
+    } 
+
+    canManage = () => {
+        return User.canManage(this);
+    }
+
+    static forPublicScope = [
+        'public',
+        'isActive',
+    ];
+
+    static forPublicWithPasswordScope = [
+        'publicWithPassword',
+        'isActive',
+    ];
+
+    static forCreateScope = [
+        'private',
+    ];
 }

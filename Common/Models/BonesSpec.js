@@ -12,6 +12,12 @@ module.exports.BonesSpec = class BonesSpec extends Model {
                     allowNull: false,
                     primaryKey: true,
                     unique: true,
+                    references: {
+                        model: 'Bones',
+                        key: 'ID',
+                    },
+                    onDelete: 'cascade',
+                    onUpdate: 'cascade',
                 },
                 Level: {
                     type: DataTypes.INTEGER,
@@ -50,14 +56,14 @@ module.exports.BonesSpec = class BonesSpec extends Model {
                 },
             },
             {
+                defaultScope: {
+                    attributes: { exclude: ['createdAt', 'updatedAt'] },
+                },
                 scopes: {
-                    defaultScope: {
-                        attributes: { exclude: ['ID'] },
-                    },
                     ofBones(BonesID) {
                         return {
                             where: {
-                                BonesID: { [Op.is]: BonesID },
+                                ID: { [Op.is]: BonesID },
                             },
                         };
                     },
@@ -85,16 +91,17 @@ module.exports.BonesSpec = class BonesSpec extends Model {
         return {
             ID: query?.BonesID || '00000000-0000-0000-0000-000000000000',
             Level: query?.Level || -1,
-            ZoneID: query?.ZoneID || wildcard,
+            ZoneID: query?.ZoneID || BonesSpec.wildcard,
             ZoneZ: query?.ZoneZ || -1,
             ZoneTier: query?.ZoneTier || -1,
-            ZoneTerrainType: query?.ZoneTerrainType || wildcard,
+            ZoneTerrainType: query?.ZoneTerrainType || BonesSpec.wildcard,
             RegionTier: query?.RegionTier || -1,
-            TerrainTravelClass: query?.TerrainTravelClass || wildcard,
+            TerrainTravelClass: query?.TerrainTravelClass || BonesSpec.wildcard,
         };
     }
 
     static approxDepthFromZoneZ(ZoneZ) {
+        const approxDepth = BonesSpec.approxDepth;
         if (ZoneZ >= 998) {
             return approxDepth.CryoClone;
         } else if (ZoneZ >= 41) {
@@ -111,10 +118,11 @@ module.exports.BonesSpec = class BonesSpec extends Model {
         return approxDepth.Wildcard;
     }
     getApproxDepth() {
-        return approxDepthFromZoneZ(this.ZoneZ);
+        return BonesSpec.approxDepthFromZoneZ(this.ZoneZ);
     }
 
     static approxDepthFromLabel(Label) {
+        const approxDepth = BonesSpec.approxDepth;
         if (Object.keys(approxDepth).includes(Label)) {
             return approxDepth[Label];
         }
@@ -122,6 +130,7 @@ module.exports.BonesSpec = class BonesSpec extends Model {
     }
 
     static getApproxDepthLabel(Value) {
+        const approxDepth = BonesSpec.approxDepth;
         var labels = Object.keys(approxDepth);
         var index = Object.values(approxDepth).indexOf(Value);
         if (index >= labels.length
@@ -131,9 +140,10 @@ module.exports.BonesSpec = class BonesSpec extends Model {
     }
 
     isZoneStrataWithinThreshold(SpecZ) {
-        var zoneZ = approxDepthFromZoneZ(this);
-        var specZ = approxDepthFromZoneZ(SpecZ);
-        return isEitherWildcard(zoneZ, specZ, approxDepth.Wildcard)
+        const approxDepth = BonesSpec.approxDepth;
+        var zoneZ = BonesSpec.approxDepthFromZoneZ(this);
+        var specZ = BonesSpec.approxDepthFromZoneZ(SpecZ);
+        return BonesSpec.isEitherWildcard(zoneZ, specZ, approxDepth.Wildcard)
             || zoneZ === specZ
             ;
     }
@@ -184,7 +194,7 @@ module.exports.BonesSpec = class BonesSpec extends Model {
         return true;
     }
     isValid() {
-        return isValid(this);
+        return BonesSpec.isValid(this);
     }
 
     static isEqual(Spec, Other) {
@@ -206,17 +216,17 @@ module.exports.BonesSpec = class BonesSpec extends Model {
             ;
     }
     sameAs(Other) {
-        return isEqual(this, Other)
+        return BonesSpec.isEqual(this, Other)
     }
 
     isWithinSpec(PlayerSpec) {
         if (!this.isValid()) {
-            logger.warn(new Error('Passed invalid BonesSpec'));
+            logger.warn(JSON.stringify(new Error('Passed invalid BonesSpec'), null, 4));
             return false;
         }
 
-        if (!isValid(PlayerSpec)) {
-            logger.warn(new Error('Passed invalid PlayerSpec'));
+        if (!BonesSpec.isValid(PlayerSpec)) {
+            logger.warn(JSON.stringify(new Error('Passed invalid PlayerSpec'), null, 4));
             return false;
         }
 
@@ -224,33 +234,33 @@ module.exports.BonesSpec = class BonesSpec extends Model {
             return true;
         }
 
-        if (!isEitherWildcard(this.Level, PlayerSpec.Level, -1)
-            && !isWithinLevel(this.Level, PlayerSpec.Level)) {
+        if (!BonesSpec.isEitherWildcard(this.Level, PlayerSpec.Level, -1)
+            && !BonesSpec.isWithinLevel(this.Level, PlayerSpec.Level)) {
             return false;
         }
 
-        if (!isZoneStrataWithinThreshold(this.ZoneZ, PlayerSpec.ZoneZ)) {
+        if (!BonesSpec.isZoneStrataWithinThreshold(this.ZoneZ, PlayerSpec.ZoneZ)) {
             return false;
         }
 
-        if (!isEitherWildcard(this.ZoneTier, PlayerSpec.ZoneTier, -1)
+        if (!BonesSpec.isEitherWildcard(this.ZoneTier, PlayerSpec.ZoneTier, -1)
             && Math.Abs(ZoneTier - PlayerSpec.ZoneTier) > 5) {
             return false;
         }
 
-        if (!isEitherWildcard(this.ZoneTerrainType, PlayerSpec.ZoneTerrainType, wildcard)
+        if (!BonesSpec.isEitherWildcard(this.ZoneTerrainType, PlayerSpec.ZoneTerrainType, BonesSpec.wildcard)
             && this.ZoneTerrainType != PlayerSpec.ZoneTerrainType) {
             return false;
         }
 
-        if (!isEitherWildcard(this.RegionTier, PlayerSpec.RegionTier, -1)
+        if (!BonesSpec.isEitherWildcard(this.RegionTier, PlayerSpec.RegionTier, -1)
             && this.RegionTier != PlayerSpec.RegionTier) {
             return false;
         }
 
-        if (!isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, wildcard)
-            && !isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, '')
-            && !isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, null)
+        if (!BonesSpec.isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, BonesSpec.wildcard)
+            && !BonesSpec.isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, '')
+            && !BonesSpec.isEitherWildcard(this.TerrainTravelClass, PlayerSpec.TerrainTravelClass, null)
             && this.TerrainTravelClass != PlayerSpec.TerrainTravelClass) {
             return false;
         }

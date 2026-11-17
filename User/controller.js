@@ -42,22 +42,16 @@ module.exports.createUser = async (req, res) => {
             throw new Error(`Failed to create User: No ID`);
         }
 
-        var status = USER_DEFAULT_STATUS;
-        var access = USER_DEFAULT_ACCESS;
-        if (req.user?.canManage) {
-            status = Status || USER_DEFAULT_STATUS;
-            access = Access || USER_DEFAULT_ACCESS;
-        }
+        const canManage = req.user && req.user.canManage;
 
         const [user, created] = await User.unscoped().findOrCreate({
             where: {
                 ID: ID
             },
             defaults: {
-                ID: ID,
                 Handle: Handle,
-                Status: status,
-                Access: access,
+                Status: canManage && Status,
+                Access: canManage && Access,
                 Password: Password
             },
         });
@@ -98,11 +92,11 @@ module.exports.updateUser = async (req, res) => {
                 method: 'updateUser',
                 error: `User not found: ${ID}`
             };
-            logger.warn({ output });
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
-        logger.info(user);
+        logger.info(JSON.stringify(user, null, 4));
 
         /*var log = {
             Field: null,
@@ -194,7 +188,7 @@ module.exports.updateUserHandle = async (req, res) => {
                 method: 'updateUserHandle',
                 error: `User not found: ${ID}`
             };
-            logger.warn({ output });
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -214,9 +208,7 @@ module.exports.updateUserHandle = async (req, res) => {
         catchMessage = `Failed to reload User: ${ID}`;
         await user.reload();
 
-        logger.info({
-            Message: `Updated user handle "${originalHandle}" -> "${user.Handle}"`,
-        });
+        logger.info(`Updated user handle "${originalHandle}" -> "${user.Handle}"`);
 
         return res.status(200).json(user);
     }
@@ -243,7 +235,7 @@ module.exports.updateUserPassword = async (req, res) => {
                 method: 'updateUserPassword',
                 error: `User not found: ${ID}`
             };
-            logger.warn({ output });
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -265,9 +257,7 @@ module.exports.updateUserPassword = async (req, res) => {
         catchMessage = `Failed to reload User: ${ID}`;
         await user.reload();
 
-        logger.info({
-            Message: `Updated user password "${originalPassword}" -> "${user.Password}"`,
-        });
+        logger.info(`Updated user password "${originalPassword}" -> "${user.Password}"`);
 
         return res.status(200).json(user);
     }
@@ -280,11 +270,9 @@ module.exports.updateUserPassword = async (req, res) => {
 };
 
 module.exports.getUser = async (req, res) => {
-    const {
-        UserID
-    } = req.params;
     try {
-        const user = await User.scope('includePassword').findByPk(UserID);
+        const UserID = req.params.UserID;
+        const user = await User.scope(User.forPublicWithPasswordScope).findByPk(UserID);
         if (!user) {
             var output = {
                 method: 'getUser',
@@ -329,9 +317,8 @@ module.exports.getAllUsers = async (req, res) => {
 };
 
 module.exports.getUserStatus = async (req, res) => {
-    var userID;
     try {
-        userID = req.params.UserID;
+        const UserID = req.params.UserID;
         const user = await User.findOne({
             attributes: ['Status'],
             where: {
@@ -341,9 +328,9 @@ module.exports.getUserStatus = async (req, res) => {
 
         if (!user) {
             var output = {
-                message: `Failed to find User: ${userID}`,
+                message: `Failed to find User: ${UserID}`,
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -372,7 +359,7 @@ module.exports.getUserHandle = async (req, res) => {
             var output = {
                 message: `Failed to find User: ${userID}`,
             };
-            logger.warn(output);
+            logger.warn(JSON.stringify(output, null, 4));
             return res.status(204).json(output);
         }
 
@@ -409,7 +396,7 @@ module.exports.getSession = async (req, res) => {
             });
         }
 
-        const user = await User.scope('includePassword').findByPk(UserID);
+        const user = await User.scope(User.forPublicWithPasswordScope).findByPk(UserID);
 
         if (!user) {
             return logger.caught(res, 204, {
@@ -431,21 +418,13 @@ module.exports.getSession = async (req, res) => {
             });
         }
 
-        var newSession = crypto.randomUUID();
-
-        user.update({
-            SessionID: newSession
-        });
-
-        await user.save({
-            fields: ['SessionID'],
-        });
+        const session = await user.createSession();
 
         await user.reload();
 
         const payload = {
             User: UserID,
-            SessionID: newSession,
+            SessionID: session.ID,
         }
 
         const host = req.get('host');
@@ -460,7 +439,7 @@ module.exports.getSession = async (req, res) => {
             params,
         );
 
-        logger.info({ token: token, user: payload });
+        logger.info(JSON.stringify({ token: token, user: payload }, null, 4));
         res.status(200).json({
             token: token,
             user: user,
@@ -524,7 +503,7 @@ module.exports.getAllReports = async (req, res) => {
             message: 'Error retrieving All Reports',
             error: error.message
         };
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 };
@@ -589,7 +568,7 @@ module.exports.deleteAllReports = async (req, res) => {
             error: error.message,
             reportErrors: errors,
         }
-        logger.error(output);
+        logger.error(JSON.stringify(output, null, 4));
         res.status(500).json(output);
     }
 
@@ -606,6 +585,6 @@ module.exports.deleteAllReports = async (req, res) => {
         message: message,
         reportErrors: errors,
     };
-    logger.info(output);
+    logger.info(JSON.stringify(output, null, 4));
     res.status(200).json(output);
 };

@@ -3,7 +3,7 @@ const { request } = require('express');
 const BonesController = require('./controller');
 
 const { assignUploadToken, checkUploadAuth } = require('../Common/Middlewares/IsPendingUpload');
-const { checkAuth, checkCanDownload, checkCanUpload, requireSelfOrManage } = require('./../Common/Middlewares/IsAuthenticated');
+const { checkAuth, checkCanDownload, checkCanUpload, requireSelfOrManage, checkCanManage } = require('./../Common/Middlewares/IsAuthenticated');
 
 // upload bones
 router.post('/bones', checkAuth, checkCanUpload, assignUploadToken, BonesController.createBones);
@@ -38,7 +38,9 @@ router.get('/bones/IDs/spec', checkAuth, checkCanDownload, BonesController.getBo
 
 // Stats
 router.get('/bones/stat-sets', checkAuth, checkCanDownload, BonesController.getAllBonesStats);
-router.get('/bones/:BonesID/stat-sets', checkAuth, checkCanDownload, BonesController.getBonesStats);
+router.get('/bones/:BonesID/stat-sets', checkAuth, checkCanDownload, BonesController.getBonesStats);            // completely anonymous, aggregated stats
+router.get('/bones/:BonesID/stat-sets/:UserID', checkAuth, requireSelfOrManage, BonesController.getBonesStats); // separates the user's own stats out, requires auth or manage
+router.get('/bones/:BonesID/stat-sets/complete', checkAuth, checkCanManage, BonesController.getBonesStats);     // all users complete stats for the given stat-set
 // update bones stats
 router.put('/bones/:BonesID/stat-sets/:Stat', checkAuth, checkCanDownload, BonesController.updateBonesStats);
 

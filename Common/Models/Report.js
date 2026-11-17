@@ -40,10 +40,10 @@ module.exports.Report = class Report extends Model {
                 }
             },
             {
+                defaultScope: {
+                    attributes: { exclude: ['ID', 'createdAt', 'updatedAt'] },
+                },
                 scopes: {
-                    defaultScope: {
-                        attributes: { exclude: ['ID'] },
-                    },
                     withID: {
                     },
                     ofUser(UserID) {
