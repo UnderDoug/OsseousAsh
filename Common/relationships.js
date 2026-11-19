@@ -604,3 +604,90 @@ ModConfigRecord.hasOne(ModRecord, { // source: ModConfigRecord, target: ModRecor
     // refs ModRecord.Index
     sourceKey: 'ModRecordIndex',
 });
+
+module.exports.setUpMissingConstraints = async (queryInterface) => {
+    const foreignKeysForTables = await queryInterface.getForeignKeysForTables(['BonesSpec', 'BonesStats', 'ModConfig']);
+    logger.info(JSON.stringify({ ForeignKeys: foreignKeysForTables }, null, 4));
+    const addConstraintTasks = [];
+    // BonesSpec
+    try {
+        let foreignKeysForTable = foreignKeysForTables.BonesSpec;
+        if (!foreignKeysForTable.includes('BonesSpec_Bones_fkey')) {
+            addConstraintTasks.push([
+                'BonesSpec',
+                queryInterface.addConstraint('BonesSpec', {
+                    fields: ['ID'],
+                    type: 'foreign key',
+                    name: 'BonesSpec_Bones_fkey',
+                    references: { //Required field
+                        table: 'Bones',
+                        field: 'ID'
+                    },
+                    onDelete: 'cascade',
+                    onUpdate: 'cascade'
+                })
+            ]);
+        }
+    }
+    catch (err) {
+        logger.warn(`Unable to add BonesSpec pkey/fkey constraints (inner): ${JSON.stringify(err, null, 4)}`);
+    }
+
+    // BonesStats
+    try {
+        let foreignKeysForTable = foreignKeysForTables.BonesStats;
+        if (!foreignKeysForTable.includes('BonesStats_Bones_fkey')) {
+            addConstraintTasks.push([
+                'BonesStats',
+                queryInterface.addConstraint('BonesStats', {
+                    fields: ['ID'],
+                    type: 'foreign key',
+                    name: 'BonesStats_Bones_fkey',
+                    references: { //Required field
+                        table: 'Bones',
+                        field: 'ID'
+                    },
+                    onDelete: 'cascade',
+                    onUpdate: 'cascade'
+                })
+            ]);
+        }
+    }
+    catch (err) {
+        logger.warn(`Unable to add BonesStats pkey/fkey constraints (inner): ${JSON.stringify(err, null, 4)}`);
+    }
+
+    // ModConfig
+    try {
+        let foreignKeysForTable = foreignKeysForTables.ModConfig;
+        if (!foreignKeysForTable.includes('ModConfig_Bones_fkey')) {
+            addConstraintTasks.push([
+                'ModConfig',
+                queryInterface.addConstraint('ModConfig', {
+                    fields: ['ID'],
+                    type: 'foreign key',
+                    name: 'ModConfig_Bones_fkey',
+                    references: { //Required field
+                        table: 'Bones',
+                        field: 'ID'
+                    },
+                    onDelete: 'cascade',
+                    onUpdate: 'cascade'
+                })
+            ]);
+        }
+    }
+    catch (err) {
+        logger.warn(`Unable to add ModConfig pkey/fkey constraints (inner): ${JSON.stringify(err, null, 4)}`);
+    }
+
+    for (let i = 0; i < addConstraintTasks.length; i++) {
+        let [label, task] = addConstraintTasks[i];
+        try {
+            await task;
+        }
+        catch (err) {
+            logger.warn(`Failed to await addConstraintTasks['${label}']: ${JSON.stringify(err, null, 4)}`);
+        }
+    }
+}

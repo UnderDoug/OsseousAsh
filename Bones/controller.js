@@ -105,7 +105,7 @@ module.exports.createBones = async (req, res) => {
         const userID = rb.UserID || req.user?.ID;
         const userHandle = rb.SaveBonesJSON && rb.SaveBonesJSON.Handle;
         console.log(JSON.stringify({ userID: userID, userHandle: userHandle }, null, 4));
-                
+
         catchMessage = `createBones findOrCreate User: ${userID}`;
         const [user, userCreated] = await User.unscoped().findOrCreate({
             where: {
@@ -148,12 +148,18 @@ module.exports.createBones = async (req, res) => {
                 }
                 catchMessage = `createBones bonesFound Bones (associative update): ${rb.BonesID}`;
                 try {
-                    catchMessage = `createBones bonesFound BonesSpec.destroy: ${rb.BonesID}`;
-                    await bones.BonesSpec.destroy();
-                    catchMessage = `createBones bonesFound BonesStats.destroy: ${rb.BonesID}`;
-                    await bones.BonesStats.destroy();
-                    catchMessage = `createBones bonesFound ModConfig.destroy: ${rb.BonesID}`;
-                    await bones.ModConfig.destroy();
+                    let destroyTasks = [
+                        { Label: 'BonesSpec', Task: bones.BonesSpec.destroy(), },
+                        { Label: 'BonesStats', Task: bones.BonesStats.destroy(), },
+                        { Label: 'ModConfig', Task: bones.ModConfig.destroy(), },
+                    ];
+
+                    catchMessage = `createBones bonesFound for (task in destroyTasks): ${rb.BonesID}`;
+                    for ({ Label, Task } in destroyTasks) {
+                        catchMessage = `createBones bonesFound destroyTasks ${Label}: ${rb.BonesID}`;
+                        await Task;
+                    }
+
                     await bones.update({
                         ID: rb.BonesID,
                         SaveBonesJSON: rb.SaveBonesJSON,
@@ -180,7 +186,187 @@ module.exports.createBones = async (req, res) => {
             }
         }
 
-        var bonesSpec = bones.BonesSpec;
+        const asyncStart = new Date();
+        const taskDurations = [];
+        const creationTasks = [
+            {
+                Label: 'BonesSpec',
+                Model: bones.BonesSpec,
+                Task: !bones.BonesSpec ? bones.createBonesSpec(rb.BonesSpec) : undefined,
+                Callback: async (bonesSpec) => {
+                    return bonesSpec;
+                },
+            },
+            {
+                Label: 'BonesStats',
+                Model: bones.BonesStats,
+                Task: !bones.BonesStats ? bones.createBonesStats(rb.BonesStats) : undefined,
+                Callback: async (bonesStats) => {
+                    let callbackStart = new Date();
+                    var rbStats = rb.BonesStats.Stats;
+                    const statLabels = Object.keys(rbStats);
+
+                    let statCategoryTasks = [];
+                    for (let i = 0; i < statLabels.length; i++) {
+                        let statLabel = statLabels[i];
+                        catchMessage = `createBones findOrCreate statLabel '${statLabel}': ${rb.BonesID}`;
+                        try {
+                            let statCategoryOptions = {
+                                where: {
+                                    Name: statLabel,
+                                },
+                            };
+                            statCategoryTasks.push([statLabel, StatCategory.findOrCreate(statCategoryOptions)]);
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+
+                    let addCategoryTasks = [];
+                    for (let i = 0; i < statCategoryTasks.length; i++) {
+                        let [statLabel, task] = statCategoryTasks[i];
+                        catchMessage = `createBones findOrCreate await statCategoryTask[${statLabel}]: ${rb.BonesID}`;
+                        try {
+                            let [statCategory, created] = await task;
+                            if (created) {
+                                logger.info(`new StatCategory '${statLabel}' added by User [${userID}]`);
+                            }
+                            if (statCategory) {
+                                catchMessage = `createBones bonesStats.addStat '${statLabel}': ${rb.BonesID}`;
+                                let rbEntries = rbStats[statLabel];
+                                console.log(JSON.stringify({ Key: statLabel, Value: rbEntries }, null, 4));
+                                let through = {};
+                                if (rbEntries) {
+                                    through = { through: { Entries: rbEntries }, };
+                                }
+                                catchMessage = `createBones findOrCreate addCategoryTasks.push[${statLabel}]: ${rb.BonesID}`;
+                                addCategoryTasks.push([statLabel, bonesStats.addCategory(statCategory, through)]);
+                            }
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+
+                    for (let i = 0; i < addCategoryTasks.length; i++) {
+                        let [statLabel, task] = addCategoryTasks[i];
+                        catchMessage = `createBones findOrCreate await addCategoryTasks[${statLabel}]: ${rb.BonesID}`;
+                        try {
+                            let bonesStatsCategory = await task;
+                            console.log(JSON.stringify({ bonesStatsCategory: bonesStatsCategory }, null, 4));
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+                    taskDurations.push(new Date() - callbackStart);
+                    return bonesStats;
+                },
+            },
+            {
+                Label: 'ModConfig',
+                Model: bones.ModConfig,
+                Task: !bones.ModConfig ? bones.createModConfig(rb.ModConfig) : undefined,
+                Callback: async (modConfig) => {
+                    let callbackStart = new Date();
+
+                    const modRecordTasks = [];
+                    for (let i = 0; i < rb.ModConfig.Records.length; i++) {
+                        let record = rb.ModConfig.Records[i];
+                        try {
+                            let version = record.Version || '0.0.0';
+                            let modRecordOptions = {
+                                attributes: ['Index', 'ID', 'Version', 'Title'],
+                                where: {
+                                    ID: record.ID,
+                                    Version: version
+                                },
+                                defaults: {
+                                    Title: record.Title,
+                                }
+                            };
+                            catchMessage = `createBones findOrCreate record[${i}] [${record.ID}, ${record.Version}]`;
+                            modRecordTasks.push(ModRecord.findOrCreate(modRecordOptions));
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+
+                    const addModRecordTasks = [];
+                    for (let i = 0; i < modRecordTasks.length; i++) {
+                        let task = modRecordTasks[i];
+                        try {
+                            catchMessage = `createBones findOrCreate await modRecordTask[${i}]`;
+                            let [modRecord, created] = await task;
+
+                            catchMessage = `createBones addModRecordTasks.push(modRecord[${i}]) [${modRecord.ID}, ${modRecord.Version}]`;
+                            addModRecordTasks.push(modConfig.addRecord(modRecord));
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+
+                    for (let i = 0; i < addModRecordTasks.length; i++) {
+                        let task = addModRecordTasks[i];
+                        try {
+                            catchMessage = `createBones findOrCreate await addModRecordTask[${i}]`;
+                            await task;
+                        }
+                        catch (err) {
+                            logger.warn(`${catchMessage}; ${err.message}`);
+                        }
+                    }
+                    taskDurations.push(new Date() - callbackStart);
+                    return modConfig;
+                },
+            },
+        ];
+
+        let creationCallbackTasks = [];
+        for (let i = 0; i < creationTasks.length; i++) {
+            let { Label, Model, Task, Callback } = creationTasks[i];
+            catchMessage = `createBones creationTasks['${Label}']: ${rb.BonesID}`;
+            try {
+                if (!Model) {
+                    catchMessage = `createBones await creationTasks['${Label}']: ${rb.BonesID}`;
+                    Model = await Task;
+                    bones[Label] = Model;
+                    if (Callback) {
+                        catchMessage = `createBones creationCallbackTasks.push(Callback(${Label})): ${rb.BonesID}`;
+                        creationCallbackTasks.push([Label, Callback(Model)]);
+                    }
+                }
+            }
+            catch (err) {
+                logger.warn(`${catchMessage}; ${err.message}`);
+            }
+        }
+
+        for (let i = 0; i < creationCallbackTasks.length; i++) {
+            let [label, task] = creationCallbackTasks[i];
+            try {
+                catchMessage = `createBones await creationCallbackTasks['${label}']: ${rb.BonesID}`;
+                await task;
+            }
+            catch (err) {
+                logger.warn(`${catchMessage}; ${err.message}`);
+            }
+        }
+        const asyncDuration = new Date() - asyncStart;
+
+        try {
+
+            catchMessage = `createBones await bones.reload (post creationCallbackTasks): ${rb.BonesID}`;
+            await bones.reload();
+        }
+        catch (err) {
+            logger.warn(`${catchMessage}; ${err.message}`);
+        }
+
+        /*var bonesSpec = bones.BonesSpec;
         // BonesSpec
         try {
             if (!bonesSpec) {
@@ -250,7 +436,7 @@ module.exports.createBones = async (req, res) => {
             if (modConfig.Records?.length != rb.ModConfig.Records.length) {
                 const modRecords = [];
                 for (let i = 0; i < rb.ModConfig.Records.length; i++) {
-                    record = rb.ModConfig.Records[i];
+                    let record = rb.ModConfig.Records[i];
                     try {
                         let version = record.Version || '0.0.0';
                         catchMessage = `createBones findOrCreate record[${i}] [${record.ID}, ${record.Version}]`;
@@ -277,7 +463,7 @@ module.exports.createBones = async (req, res) => {
         catch (err) {
             catchMessage += `; caught!`
             logger.warn(`${catchMessage} ${JSON.stringify(err, null, 4)}`);
-        }
+        }*/
 
         if (!bones) {
             throw new Error('null Bones after creation/update');
@@ -295,20 +481,24 @@ module.exports.createBones = async (req, res) => {
         // await user.addBone(bones);
 
         catchMessage = `sending response`;
+        let resSendTime = new Date();
+        let responseTime = resSendTime - req.receivedTime;
         const output = {
             UploadToken: req.basicToken,
+            ProcessingTime: responseTime,
             BonesID: rb.BonesID,
             UserID: bones.UserID,
-            BonesInfo: bones.SaveBonesJSON,
-            BonesSpec: bones.get('BonesSpec', { plain: true }),
-            BonesStats: bones.get('BonesStats', { plain: true }),
-            ModConfig: bones.get('ModConfig', { plain: true }),
+            BonesInfo: bones.SaveBonesJSON != null,
+            BonesSpec: bones.get('BonesSpec', { plain: true }) != null,
+            BonesStats: bones.get('BonesStats', { plain: true }) != null,
+            ModConfig: bones.get('ModConfig', { plain: true }) != null,
             SavGz: {
                 Size: `${formatBytes(bones.Size)}`,
                 Data: 'to be PUT directly',
             },
             Uploaded: bones.updatedAt,
         };
+        logger.info(`createBones sending response; took ${responseTime} ms (saved ${taskDurations.reduce((a, n) => a + n) - asyncDuration} ms running async)`);
         logger.info(JSON.stringify(output, null, 4));
         res.status(201).json(output);
     }
@@ -823,14 +1013,111 @@ module.exports.tidySingleBones = async (BonesID, Fragments) => {
     return Fragments;
 }
 
+module.exports.manualJoinBones = async (bones, i) => {
+    const indexString = i !== undefined ? `[${i}]` : undefined;
+    const bonesString = `bones${indexString}`;
+    const BonesID = bones?.SaveBonesJSON?.ID || bones?.ID || 'MISSING_BONES';
+    const startTme = new Date();
+    var endTime;
+    var catchMessage = `${bonesString} top of the run`;
+    try {
+        catchMessage = `${bonesString} bonesSpecTask`;
+        let bonesSpecTask = BonesSpec.findByPk(BonesID);
+
+        catchMessage = `${bonesString} bonesStatsTask`;
+        let bonesStatsTask = BonesStats.findByPk(BonesID, {
+            attributes: { exclude: ['createdAt', 'updatedAt'] },
+            include: [
+                {
+                    association: 'Stats',
+                    attributes: ['StatCategoryName'],
+                    include: {
+                        association: 'Entries',
+                        attributes: ['UserID', 'Value'],
+                    },
+                },
+            ],
+        });
+
+        catchMessage = `${bonesString} modConfigTask`;
+        let modConfigTask = ModConfig.findByPk(BonesID, {
+            include: [{
+                association: 'Records',
+                attributes: ['ID', 'Version', 'Title'],
+                through: {
+                    attributes: [],
+                },
+            }],
+        });
+
+        catchMessage = `${bonesString}.BonesSpec`;
+        bones.BonesSpec = await bonesSpecTask;
+        if (!bones.BonesSpec) {
+            await bones.destroy();
+            throw new Error(`Missing BonesSpec`);
+        }
+
+        catchMessage = `${bonesString}.BonesStats`;
+        bones.BonesStats = await bonesStatsTask;
+        if (!bones.BonesStats) {
+            await bones.destroy();
+            throw new Error(`Missing BonesStats`);
+        }
+
+        catchMessage = `${bonesString}.ModConfig`;
+        bones.ModConfig = await modConfigTask;
+        if (!bones.ModConfig) {
+            await bones.destroy();
+            throw new Error(`Missing ModConfig`);
+        }
+
+        endTime ??= new Date();
+        catchMessage = `return ${bonesString}`;
+        return [bones, endTime - startTme];
+    }
+    catch (err) {
+        endTime ??= new Date();
+        logger.warn(`manualJoinBones failed manually joining bones${indexString} at catchMessage: ${catchMessage}; ${err.message}`);
+        catchMessage = `catch${indexString} ${err.message}`;
+        return [null, endTime - startTme];
+    }
+    finally {
+        logger.info(`${bonesString}, ID [${BonesID}] took ${endTime - startTme} ms`);
+    }
+}
+
 module.exports.tidyBones = async () => {
     try {
-        const invalidBonesIDs = await Bones.unscoped().findAll({
-            attribute: ['ID'],
-            where: {
-                SavGz: { [Op.is]: null },
+        const allBones = await Bones.unscoped().findAll();
+
+        const bonesTasks = [];
+        for (let i = 0; i < allBones.length; i++) {
+            let bones = allBones[i];
+            bonesTasks.push([bones.ID, this.manualJoinBones(bones, i)]);
+        }
+
+        const invalidBonesIDs = [];
+        for (let i = 0; i < bonesTasks.length; i++) {
+            let [bonesID, task] = bonesTasks[i];
+            let bones;
+            let duration;
+
+            try {
+                [bones, duration] = await task;
             }
-        });
+            catch (err) {
+                invalidBonesIDs.push(bonesID);
+                continue;
+            }
+            if (!bones
+                || !bones.SavGz
+                || !bones.BonesSpec
+                || !bones.BonesStats
+                || !bones.ModConfig) {
+                invalidBonesIDs.push(bonesID);
+                continue;
+            }
+        }
 
         logger.info(`Tidying ${invalidBonesIDs?.length || 0} bone fragments...`);
         var fragments = {
@@ -838,13 +1125,26 @@ module.exports.tidyBones = async () => {
         };
         if (invalidBonesIDs) {
             try {
+                const tidyBonesTasks = [];
                 for (let i = 0; i < invalidBonesIDs.length; i++) {
                     try {
                         let bonesID = invalidBonesIDs[i].ID;
-                        fragments = await this.tidySingleBones(bonesID, fragments);
+                        tidyBonesTasks.push([bonesID, this.tidySingleBones(bonesID, fragments)]);
                     }
                     catch (err) {
-                        logger.warn(`issue tidying Bones[${i}]) [${bonesID}]: ${err.message}`);
+                        logger.warn(`issue pushing tidyBonesTasks[${i}] [${bonesID}]: ${err.message}`);
+                    }
+                }
+
+                for (let i = 0; i < tidyBonesTasks.length; i++) {
+                    let bonesID;
+                    let task;
+                    try {
+                        [bonesID, task] = tidyBonesTasks[i];
+                        await task;
+                    }
+                    catch (err) {
+                        logger.warn(`issue await tidyBonesTasks[${i}] [${bonesID}]: ${err.message}`);
                     }
                 }
             }
@@ -854,19 +1154,113 @@ module.exports.tidyBones = async () => {
         }
 
         logger.info(`Tidying orphans...`);
-        try {
-            const reports = await Report.findAll({
-                include: [{
-                    association: Report.Bones,
-                    required: false,
-                }],
+        const tidyOrphan = async (Label, Instances, ID, ExistingBones, Fragments) => {
+            logger.info(`Tidying orphaned ${Label}...`);
+            if (Instances?.length) {
+                let destroyTasks = [];
+                for (let i = 0; i < Instances.length; i++) {
+                    try {
+                        let instance = Instances[i];
+                        if (!ExistingBones
+                            || !ExistingBones.includes(instance[ID])) {
+                            destroyTasks.push([i, instance.destroy()]);
+                        }
+                    }
+                    catch (err) {
+                        logger.warn(`issue tidying orphaned ${Label}[${i}]: ${err.message}`);
+                        Fragments.Orphans ??= {};
+                        Fragments.Orphans.Errors ??= 0;
+                        Fragments.Orphans.Errors++;
+                    }
+                }
+
+                for (let i = 0; i < destroyTasks.length; i++) {
+                    let j;
+                    let task;
+                    try {
+                        [j, task] = destroyTasks[i];
+                        await task;
+                        Fragments.Orphans ??= {};
+                        Fragments.Orphans[Label] ??= 0;
+                        Fragments.Orphans[Label]++;
+                    }
+                    catch (err) {
+                        logger.warn(`issue tidying orphaned ${Label}[${j}]: ${err.message}`);
+                        Fragments.Orphans ??= {};
+                        Fragments.Orphans.Errors ??= 0;
+                        Fragments.Orphans.Errors++;
+                    }
+                }
+            }
+        }
+
+        const tidyOrphansTasks = [
+            {
+                Label: 'Report',
+                FindAll: Report.unscoped().findAll({ attributes: ['BonesID'] }),
+                ID: 'BonesID',
+            },
+            {
+                Label: 'BonesSpec',
+                FindAll: BonesSpec.unscoped().findAll({ attributes: ['ID'] }),
+                ID: 'ID',
+            },
+            {
+                Label: 'BonesSpec',
+                FindAll: BonesStats.unscoped().findAll({ attributes: ['ID'] }),
+                ID: 'ID',
+            },
+            {
+                Label: 'ModConfig',
+                FindAll: ModConfig.unscoped().findAll({ attributes: ['ID'] }),
+                ID: 'ID',
+            },
+        ];
+
+        const existingBones = allBones?.map((row) => row.ID);
+        const tidyOrphanCallbackTasks = [];
+
+        for (let i = 0; i < tidyOrphansTasks.length; i++) {
+            let {
+                Label,
+                FindAll,
+                ID,
+            } = tidyOrphansTasks[i];
+            try {
+                let instances = await FindAll;
+                tidyOrphanCallbackTasks.push([Label, tidyOrphan(Label, instances, ID, existingBones, fragments)]);
+            }
+            catch (err) {
+                logger.warn(`issue getting instances of ${Label}: ${err.message}`);
+                fragments.Orphans ??= {};
+                fragments.Orphans.Errors ??= 0;
+                fragments.Orphans.Errors++;
+            }
+        }
+
+        for ([label, task] in tidyOrphanCallbackTasks) {
+            try {
+                await task;
+            }
+            catch (err) {
+                logger.warn(`issue tidying orphaned ${label} task in tidyOrphanCallbackTasks: ${err.message}`);
+                fragments.Orphans ??= {};
+                fragments.Orphans.Errors ??= 0;
+                fragments.Orphans.Errors++;
+            }
+        }
+
+        /*try {
+            logger.info(`Tidying orphaned Report...`);
+            const reports = await Report.unscoped().findAll({
+                attributes: ['BonesID'],
             });
-            if (reports) {
-                logger.info(`Tidying orphaned Report...`);
+            if (reports?.length) {
                 for (let i = 0; i < reports.length; i++) {
                     try {
                         let report = reports[i];
-                        if (!report?.Bones) {
+                        if (!existingBones
+                            || !existingBones.includes(report.BonesID)) {
                             await report.destroy();
                             fragments.Orphans ??= {};
                             fragments.Orphans.Report ??= 0;
@@ -897,18 +1291,16 @@ module.exports.tidyBones = async () => {
                 let model = models[i];
                 let modelLabel = model.getTableName(); // Object.prototype.toString.call(model);
                 try {
-                    let instances = await model.findAll({
-                        include: [{
-                            association: model.Bones,
-                            required: false,
-                        }]
+                    logger.info(`Tidying orphaned ${modelLabel}...`);
+                    let instances = await model.unscoped().findAll({
+                        attributes: ['ID'],
                     });
-                    if (instances) {
-                        logger.info(`Tidying orphaned ${modelLabel}...`);
+                    if (instances?.length) {
                         for (let i = 0; i < instances.length; i++) {
                             try {
                                 let instance = instances[i];
-                                if (!await Bones.findByPk(instance.ID)) {
+                                if (!existingBones
+                                    || !existingBones.includes(instance.ID)) {
                                     await instance.destroy();
                                     fragments.Orphans ??= {};
                                     fragments.Orphans[modelLabel] ??= 0;
@@ -933,17 +1325,60 @@ module.exports.tidyBones = async () => {
         catch (err) {
             logger.error(`Error tidying orphaned Models: ${err.message}`);
             fragments.Errors++;
+        }*/
+
+        try {
+            logger.info(`Tidying orphaned BonesStatsCategories...`);
+            const bonesStatsCategories = await BonesStatsCategory.findAll();
+            if (bonesStatsCategories?.length) {
+                var modConfigExists = {};
+                for (let i = 0; i < bonesStatsCategories.length; i++) {
+                    let bonesStatsCategory = bonesStatsCategories[i];
+                    let bonesStatsID = bonesStatsCategory.BonesStatsID;
+                    try {
+                        if (modConfigExists[bonesStatsID] === undefined) {
+                            let bonesStats = await BonesStats.unscoped().findByPk(bonesStatsID, {
+                                attributes: ['ID'],
+                            });
+                            modConfigExists[bonesStatsID] = bonesStats != null;
+                        }
+                        if (!modConfigExists[bonesStatsID]) {
+                            await bonesStatsCategory.destroy();
+                            fragments.Orphans ??= {};
+                            fragments.Orphans.BonesStatsCategory ??= 0;
+                            fragments.Orphans.BonesStatsCategory++;
+                        }
+                    }
+                    catch (err) {
+                        logger.warn(`issue tidying orphaned BonesStatsCategory[${i}]: ${err.message}`);
+                        fragments.Orphans ??= {};
+                        fragments.Orphans.Errors ??= 0;
+                        fragments.Orphans.Errors++;
+                    }
+                }
+            }
+        }
+        catch (err) {
+            logger.error(`Error tidying orphaned BonesStatsCategory: ${err.message}`);
+            fragments.Errors++;
         }
 
         try {
             logger.info(`Tidying orphaned ModConfigRecord...`);
             const modConfigRecords = await ModConfigRecord.findAll();
-            if (modConfigRecords) {
+            if (modConfigRecords?.length) {
+                var modConfigExists = {};
                 for (let i = 0; i < modConfigRecords.length; i++) {
                     let modConfigRecord = modConfigRecords[i];
+                    let modConfigID = modConfigRecord.ModConfigID;
                     try {
-                        let modConfig = await ModConfig.findByPk(modConfigRecord.ModConfigID);
-                        if (!modConfig) {
+                        if (modConfigExists[modConfigID] === undefined) {
+                            let modConfig = await ModConfig.unscoped().findByPk(modConfigID, {
+                                attributes: ['ID'],
+                            });
+                            modConfigExists[modConfigID] = modConfig != null;
+                        }
+                        if (!modConfigExists[modConfigID]) {
                             await modConfigRecord.destroy();
                             fragments.Orphans ??= {};
                             fragments.Orphans.ModConfigRecord ??= 0;
@@ -963,7 +1398,6 @@ module.exports.tidyBones = async () => {
             logger.error(`Error tidying orphaned ModConfigRecords: ${err.message}`);
             fragments.Errors++;
         }
-
     }
     catch (error) {
         logger.error(`Error tidying Bones ${error.message}`);
@@ -1118,12 +1552,103 @@ module.exports.deleteAllReports = async (req, res) => {
     res.status(200).json(output);
 };
 
+module.exports.prepareBonesInfo = async (bones, wantSanitizeStats, userID, i) => {
+    const indexString = i !== undefined ? `[${i}]` : undefined;
+    const bonesJSONString = `bonesJSON${indexString}`;
+    const BonesID = bones?.SaveBonesJSON?.ID || bones?.ID || 'MISSING_BONES';
+    const startTme = new Date();
+    var endTime;
+    var bonesJSON;
+    try {
+        catchMessage = `${bonesJSONString} = bones${indexString}.SaveBonesJSON`;
+        bonesJSON = bones.SaveBonesJSON;
+
+        bonesJSON.ID = BonesID || bonesJSON.ID;
+
+        catchMessage = `${bonesJSONString}.IsYou`;
+        bonesJSON.IsYou = userID
+            && bones.UserID == userID;
+
+        if (bones.Size > 0) {
+            catchMessage = `${bonesJSONString}.Size`;
+            bonesJSON.Size = bones.Size;
+        }
+
+        let bonesSpecTask = BonesSpec.findByPk(BonesID);
+        let bonesStatsTask = BonesStats.findByPk(BonesID, {
+            attributes: { exclude: ['createdAt', 'updatedAt'] },
+            include: [
+                {
+                    association: 'Stats',
+                    attributes: ['StatCategoryName'],
+                    include: {
+                        association: 'Entries',
+                        attributes: ['UserID', 'Value'],
+                    },
+                },
+            ],
+        });
+        let modConfigTask = await ModConfig.findByPk(BonesID, {
+            include: [{
+                association: 'Records',
+                attributes: ['ID', 'Version', 'Title'],
+                through: {
+                    attributes: [],
+                },
+            }],
+        });
+
+        catchMessage = `${bonesJSONString}.BonesSpec`;
+        bonesJSON.BonesSpec = await bonesSpecTask;
+        if (!bonesJSON.BonesSpec) {
+            await bones.destroy();
+            throw new Error(`Missing BonesSpec`);
+        }
+
+        catchMessage = `${bonesJSONString}.BonesStats`;
+        let bonesStats = await bonesStatsTask;
+        if (bonesStats) {
+            catchMessage = `${bonesJSONString}.BonesStats (plainWithStatsDictionary)`;
+            bonesJSON.BonesStats = wantSanitizeStats
+                ? bonesStats.plainWithStatsDictionary(userID)
+                : bonesStats.plainWithStatsDictionary()
+                ;
+        }
+        else {
+            await bones.destroy();
+            throw new Error(`Missing BonesStats`);
+        }
+
+        catchMessage = `${bonesJSONString}.EnabledMods`;
+        bonesJSON.EnabledMods = await modConfigTask;
+        if (!bonesJSON.EnabledMods) {
+            await bones.destroy();
+            throw new Error(`Missing EnabledMods`);
+        }
+
+        endTime ??= new Date();
+        catchMessage = `return ${bonesJSONString}`;
+        return [bonesJSON, endTime - startTme];
+    }
+    catch (err) {
+        endTime ??= new Date();
+        logger.warn(`prepareBonesInfo failed preparing bones${indexString} at catchMessage: ${catchMessage}; ${err.message}`);
+        catchMessage = `catch${indexString} ${err.message}`;
+        return [null, endTime - startTme];
+    }
+    finally {
+        logger.info(`${bonesJSONString}, ID [${BonesID}] took ${endTime - startTme} ms`);
+    }
+}
+
 module.exports.getBonesInfo = async (req, res) => {
     try {
         const BonesID = req.params.BonesID;
         const UserID = req.user?.ID;
 
-        const bones = await Bones.scope(Bones.forOutputCleanScope).findByPk(BonesID, {
+        const bones = await Bones
+            //.scope(Bones.forOutputCleanScope)
+            .findByPk(BonesID, {
             attributes: { exclude: ['SavGz'] },
         });
         if (!bones) {
@@ -1134,31 +1659,17 @@ module.exports.getBonesInfo = async (req, res) => {
             return res.status(204).json(output);
         }
 
-        const bonesJSON = bones.SaveBonesJSON;
-
-        bonesJSON.IsYou = UserID
-            && Bones.UserID != UserID;
-
-        if (bones.Size > 0) {
-            bonesJSON.Size = bones.Size;
-        }
-
         var user;
         if (UserID) {
-            user = Bones.User;
+            user = await User.findByPk(UserID);
         }
 
         let wantSanitizeStats = !user
             || accessLevels[user.Access] < accessLevels['Manage'];
 
-        bonesJSON.BonesStats = wantSanitizeStats
-            ? bones.BonesStats.withStatsDictionary(UserID)
-            : bones.BonesStats.withStatsDictionary()
-            ;
+        const [bonesJSON, duration] = await this.prepareBonesInfo(bones, wantSanitizeStats, UserID);
 
-        bonesJSON.BonesSpec = bones.BonesSpec;
-        bonesJSON.EnabledMods = bones.ModConfig;
-
+        logger.info(`getBonesInfo sending response; took ${new Date() - req.receivedTime} ms`);
         res.status(200).json(bonesJSON);
     }
     catch (error) {
@@ -1180,7 +1691,7 @@ module.exports.getAllBonesInfo = async (req, res) => {
         } = req.params;
 
         catchMessage = 'userID';
-        var userID = req.user?.ID || UserID;
+        const userID = req.user?.ID || UserID;
 
         catchMessage = '!to';
         if (!to) {
@@ -1202,27 +1713,30 @@ module.exports.getAllBonesInfo = async (req, res) => {
             limit = null;
         }
 
-        catchMessage = 'constraints';
-        var constraints = {
+        catchMessage = 'filter';
+        var filter = {
             SavGz: { [Op.not]: null },
         };
 
         catchMessage = 'req.body?.BonesIDs';
         if (req.body?.BonesIDs) {
-            constraints.ID = { [Op.or]: req.body.BonesIDs }
+            filter.ID = { [Op.or]: req.body.BonesIDs }
         }
 
+        const startBones = new Date();
         catchMessage = 'allBones';
         const allBones = await Bones.findAll({
             attributes: { exclude: ['SavGz'] },
-            where: constraints,
+            where: filter,
             order: [
                 ['createdAt', 'DESC']
             ],
             offset: offset,
             limit: limit,
-            include: Bones.forOutputCleanInclude,
         });
+        const endBones = new Date();
+        logger.info(`Finding bones took ${endBones - startBones} ms`);
+
         catchMessage = 'allBones?.length';
         if ((allBones?.length || 0) == 0) {
             res.status(204).json({
@@ -1230,6 +1744,7 @@ module.exports.getAllBonesInfo = async (req, res) => {
             });
             return;
         }
+
         catchMessage = 'var user';
         var user;
         if (userID) {
@@ -1240,41 +1755,41 @@ module.exports.getAllBonesInfo = async (req, res) => {
         let wantSanitizeStats = !user
             || accessLevels[user.Access] < accessLevels['Manage'];
 
-        catchMessage = 'let bonesJSONs';
-        let bonesJSONs = allBones.map((bones, i) => {
+        const startPromises = new Date();
+        catchMessage = 'let bonesJSONPomises';
+        let bonesJSONPomises = [];
+        for (let i = 0; i < allBones.length; i++) {
             try {
-                catchMessage = `bonesJSON = bones[${i}].SaveBonesJSON`;
-                let bonesJSON = bones.SaveBonesJSON;
-                catchMessage = `bonesJSON[${i}].IsYou`;
-                bonesJSON.IsYou = userID
-                    && bones.UserID == userID;
-
-                if (bones.Size > 0) {
-                    catchMessage = `bonesJSON[${i}].Size`;
-                    bonesJSON.Size = bones.Size;
-                }
-
-                catchMessage = `bonesJSON[${i}].BonesSpec`;
-                bonesJSON.BonesSpec = bones.BonesSpec;
-
-                catchMessage = `bonesJSON[${i}].BonesStats`;
-                bonesJSON.BonesStats = wantSanitizeStats
-                    ? bones.BonesStats.withStatsDictionary(userID)
-                    : bones.BonesStats.withStatsDictionary()
-                    ;
-
-                catchMessage = `bonesJSON[${i}].EnabledMods`;
-                bonesJSON.EnabledMods = bones.ModConfig;
-
-                catchMessage = `return bonesJSON[${i}]`;
-                return bonesJSON;
+                catchMessage = `bonesJSONPomises[${i}]`;
+                bonesJSONPomises[i] = this.prepareBonesInfo(allBones[i], wantSanitizeStats, userID, i);
             }
             catch (err) {
-                logger.warn(`getAllBonesInfo failed aggregating bones ${i} at catchMessage: ${catchMessage}; ${err.message}`);
-                catchMessage = `catch[${i}] ${err.message}`;
+                logger.warn(`getAllBonesInfo catch ${catchMessage}: ${err.message}`);
             }
-        });
-        logger.info(`getAllBonesInfo sending response`);
+        }
+
+        catchMessage = 'let bonesJSONs';
+        let bonesJSONs = [];
+        let combinedDuration = 0;
+        for (let i = 0; i < bonesJSONPomises.length; i++) {
+            try {
+                catchMessage = `bonesJSONs[${i}]`;
+                let [bonesJSON, duration] = await bonesJSONPomises[i];
+                combinedDuration += duration;
+                if (bonesJSON) {
+                    bonesJSONs[i] = bonesJSON;
+                }
+            }
+            catch (err) {
+                logger.warn(`getAllBonesInfo catch ${catchMessage}: ${err.message}`);
+            }
+        }
+        const endPromises = new Date();
+        var asyncDuration = endPromises - startPromises;
+        logger.info(`${combinedDuration} ms -> ${asyncDuration} ms running async`);
+        logger.info(`getAllBonesInfo sending response; took ${new Date() - req.receivedTime} ms (saved ${combinedDuration - asyncDuration} ms running async)`);
+        // logger.info(JSON.stringify(bonesJSONs, null, 4));
+
         res.status(200).json(bonesJSONs);
     }
     catch (error) {
@@ -1298,7 +1813,7 @@ module.exports.getBonesSpec = async (req, res) => {
             return res.status(204).json(output);
         }
 
-        res.status(200).json(bonesSpec);
+        return res.status(200).json(bonesSpec);
     }
     catch (error) {
         logger.caught(res, 500, {
@@ -1319,13 +1834,12 @@ module.exports.getAllBonesSpecs = async (req, res) => {
             ],
         });
         if ((bonesSpecs?.length || 0) == 0) {
-            res.status(204).json({
+            return res.status(204).json({
                 message: 'No BonesSpecs, but no errors'
             });
-            return;
         }
 
-        res.status(200).json(bonesSpecs);
+        return res.status(200).json(bonesSpecs);
     }
     catch (error) {
         var output = {
@@ -1402,8 +1916,8 @@ module.exports.getBonesStats = async (req, res) => {
             || user.Access != 'Manage';
 
         var stats = wantSanitizeStats
-            ? bonesStats.withStatsDictionary(user.ID)
-            : bonesStats.withStatsDictionary()
+            ? bonesStats.plainWithStatsDictionary(user.ID)
+            : bonesStats.plainWithStatsDictionary()
             ;
 
         res.status(200).json(stats);
@@ -1447,8 +1961,8 @@ module.exports.getAllBonesStats = async (req, res) => {
 
         for (let i = 0; i < allBonesStats.length; i++) {
             bonesStats[i] = wantSanitizeStats
-                ? allBonesStats[i].withStatsDictionary(user.ID)
-                : allBonesStats[i].withStatsDictionary()
+                ? allBonesStats[i].plainWithStatsDictionary(user.ID)
+                : allBonesStats[i].plainWithStatsDictionary()
                 ;
         }
 

@@ -84,7 +84,7 @@ module.exports.BonesStats = class BonesStats extends Model {
         }, {});
     }
 
-    withStatsDictionary(UserID) {
+    plainWithStatsDictionary(UserID) {
         return {
             ID: this.get('ID', { plain: true }),
             LastEncountered: this.get('LastEncountered', { plain: true }),

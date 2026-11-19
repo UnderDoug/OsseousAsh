@@ -92,7 +92,6 @@ module.exports.TokenGenerator = class TokenGenerator {
         let err = new Error(`Invalid Session [${token.SessionID}]`);
         err.name = errors.invalidSession;
         res?.setHeader(TokenGenerator.HeaderLabel, TokenGenerator.INVALID);
-        session.destroy();
         throw err;
     }
 }
